@@ -22,7 +22,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 
 // --- Constants ---
 const { width: windowWidth } = Dimensions.get('window'); // Use windowWidth if needed
-const apiUrl = 'https://fluffy-space-trout-7vgv67xv9xrhw77-3000.app.github.dev';
+const apiUrl = "https://qmarshal.onrender.com"
 
 // --- Navigation Types (Ensure this is consistent across your app) ---
 type RootStackParamList = {
