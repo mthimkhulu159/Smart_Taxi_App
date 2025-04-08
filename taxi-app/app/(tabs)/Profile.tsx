@@ -23,7 +23,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../context/authContext'; // Assuming correct path
 
 // --- Constants ---
-const apiUrl = 'https://fluffy-space-trout-7vgv67xv9xrhw77-3000.app.github.dev';
+const apiUrl = "https://qmarshal.onrender.com"
 const { width: windowWidth } = Dimensions.get('window');
 
 // --- Navigation Types (Ensure this is consistent across your app) ---

@@ -25,7 +25,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import io from 'socket.io-client';
 
 // --- Constants ---
-const apiUrl = 'https://fluffy-space-trout-7vgv67xv9xrhw77-3000.app.github.dev';
+const apiUrl = "https://qmarshal.onrender.com"
 
 // --- Types and Interfaces ---
 type Taxi = {

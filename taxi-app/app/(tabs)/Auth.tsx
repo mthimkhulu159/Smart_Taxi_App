@@ -26,7 +26,7 @@ import { LinearGradient } from 'expo-linear-gradient'; // Import LinearGradient
 const { width } = Dimensions.get("window");
 
 // --- Configuration ---
-const API_URL = "https://fluffy-space-trout-7vgv67xv9xrhw77-3000.app.github.dev"; // Use your actual API URL
+const apiUrl = "https://qmarshal.onrender.com"
 const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"; // ** IMPORTANT: Replace with your actual Google Client ID **
 
 // --- Color Palette ---
@@ -76,7 +76,7 @@ const AuthScreen = () => {
                 const endpoint = activeTab === 'signup' ? "auth/google/signup" : "auth/google/login";
 
                 try {
-                    const apiResponse = await fetchData(API_URL, endpoint, {
+                    const apiResponse = await fetchData(apiUrl, endpoint, {
                         method: "POST",
                         body: { token: id_token },
                     });
@@ -154,7 +154,7 @@ const AuthScreen = () => {
         const body = { name, email, password };
 
         try {
-            const response = await fetchData(API_URL, endpoint, { method: "POST", body });
+            const response = await fetchData(apiUrl, endpoint, { method: "POST", body });
             if (response?.token) {
                 await login(response.token);
                 setTimeout(() => Alert.alert("Success", "Account created successfully!"), 500);
@@ -180,7 +180,7 @@ const AuthScreen = () => {
         const body = { email, password };
 
         try {
-            const response = await fetchData(API_URL, endpoint, { method: "POST", body });
+            const response = await fetchData(apiUrl, endpoint, { method: "POST", body });
             if (response?.token) {
                 await login(response.token);
                 setTimeout(() => Alert.alert("Success", "Welcome back!"), 500);
