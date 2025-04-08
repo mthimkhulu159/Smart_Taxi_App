@@ -7,21 +7,21 @@ import {
     StyleSheet,
     Animated,
     Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
+    KeyboardAvoidingView, // <-- Keep this import
+    Platform,             // <-- Keep this import
+    ScrollView,           // <-- Keep this import
     Dimensions,
-    ActivityIndicator, // Import ActivityIndicator
-    Easing,          // Import Easing for smoother animation
+    ActivityIndicator,
+    Easing,
 } from "react-native";
-import { AntDesign, Feather } from "@expo/vector-icons"; // Added Feather for input icons
+import { AntDesign, Feather } from "@expo/vector-icons";
 import * as Google from "expo-auth-session/providers/google";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../../types/navigation"; // Adjust path if needed
 import { fetchData } from "../api/api"; // Adjust path if needed
 import { useAuth } from "../context/authContext"; // Adjust path if needed
-import { LinearGradient } from 'expo-linear-gradient'; // Import LinearGradient
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get("window");
 
@@ -31,9 +31,9 @@ const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"; // ** IMPORTANT: Replace with 
 
 // --- Color Palette ---
 const colors = {
-    primary: '#6C63FF', // A modern purple
+    primary: '#6C63FF',
     primaryDark: '#574EDB',
-    secondary: '#F0F2F5', // Light background for inputs
+    secondary: '#F0F2F5',
     backgroundGradientStart: '#7F78FF',
     backgroundGradientEnd: '#6C63FF',
     text: '#333',
@@ -45,7 +45,7 @@ const colors = {
     googleRed: '#DB4437',
     shadow: '#000',
     tabInactive: '#A0A0A0',
-    tabActive: '#6C63FF', // Use primary color for active tab text
+    tabActive: '#6C63FF',
 };
 
 // --- AuthScreen Component ---
@@ -55,19 +55,16 @@ const AuthScreen = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [name, setName] = useState("");
-    const [isLoading, setIsLoading] = useState(false); // Loading state
+    const [isLoading, setIsLoading] = useState(false);
     const navigation = useNavigation<StackNavigationProp<RootStackParamList, "Home">>(); // Adjust "Home" if needed
 
-    // Google Auth Hook (must be called at the top level)
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
         clientId: GOOGLE_CLIENT_ID,
     });
 
-    // Animation for tab indicator
     const tabTranslateX = useRef(new Animated.Value(0)).current;
-    const formOpacity = useRef(new Animated.Value(1)).current; // Opacity animation for form switch
+    const formOpacity = useRef(new Animated.Value(1)).current;
 
-    // Effect to handle Google Sign-In response
     useEffect(() => {
         const handleGoogleResponse = async () => {
             if (response?.type === "success") {
@@ -83,7 +80,6 @@ const AuthScreen = () => {
 
                     if (apiResponse?.token) {
                         await login(apiResponse.token);
-                        // Show success slightly later to allow screen transition
                         setTimeout(() => Alert.alert("Success", `Welcome ${activeTab === 'signup' ? "!" : "back!"}`), 500);
                         navigation.navigate("Home"); // Adjust "Home" if needed
                     } else {
@@ -105,45 +101,42 @@ const AuthScreen = () => {
         };
 
         handleGoogleResponse();
-    }, [response, activeTab, login, navigation]); // Add dependencies
+    }, [response, activeTab, login, navigation]);
 
 
-    // Function to switch tabs
     const switchTab = (tab: 'login' | 'signup') => {
-        if (tab === activeTab) return; // Don't animate if already active
+        if (tab === activeTab) return;
 
-        const targetValue = tab === 'login' ? 0 : (width * 0.9 - 40) / 2; // Calculate target based on container width and padding
+        const targetValue = tab === 'login' ? 0 : (width * 0.9 - 40) / 2;
 
         Animated.parallel([
-            Animated.timing(formOpacity, { // Fade out current form
+            Animated.timing(formOpacity, {
                 toValue: 0,
                 duration: 150,
                 useNativeDriver: true,
                 easing: Easing.ease,
             }),
-            Animated.spring(tabTranslateX, { // Move indicator
+            Animated.spring(tabTranslateX, {
                 toValue: targetValue,
-                friction: 7, // Adjust for desired springiness
+                friction: 7,
                 tension: 50,
                 useNativeDriver: true,
             })
         ]).start(() => {
             setActiveTab(tab);
-            // Clear fields when switching tabs for better UX
             setEmail('');
             setPassword('');
             setName('');
-            Animated.timing(formOpacity, { // Fade in new form
+            Animated.timing(formOpacity, {
                 toValue: 1,
                 duration: 150,
-                delay: 50, // Slight delay for smoother transition
+                delay: 50,
                 useNativeDriver: true,
                 easing: Easing.ease,
             }).start();
         });
     };
 
-    // --- Handlers ---
     const handleSignUpSubmit = async () => {
         if (!name || !email || !password) {
             Alert.alert("Missing Information", "Please fill in all fields.");
@@ -186,7 +179,7 @@ const AuthScreen = () => {
                 setTimeout(() => Alert.alert("Success", "Welcome back!"), 500);
                 navigation.navigate("Home"); // Adjust "Home" if needed
             } else {
-                throw new Error(response?.message || "Invalid credentials.");
+                 throw new Error(response?.message || "Invalid credentials.");
             }
         } catch (error: any) {
              console.error("Login Error:", error);
@@ -197,11 +190,9 @@ const AuthScreen = () => {
     };
 
     const handleGoogleLogin = () => {
-        // promptAsync is obtained from the hook at the top level
-        promptAsync(); // Initiate Google Sign-In flow
+        promptAsync();
     };
 
-    // --- Render Helper for Forms ---
     const renderForm = () => {
         const commonInputs = (
             <>
@@ -246,7 +237,7 @@ const AuthScreen = () => {
                     <TouchableOpacity
                         style={[styles.button, styles.googleButton]}
                         onPress={handleGoogleLogin}
-                        disabled={isLoading || !request} // Disable if google auth isn't ready
+                        disabled={isLoading || !request}
                     >
                         <AntDesign name="google" size={20} color={colors.white} />
                         <Text style={styles.googleText}>Login with Google</Text>
@@ -289,24 +280,29 @@ const AuthScreen = () => {
         }
     };
 
-    // --- Main Render ---
     return (
         <LinearGradient
             colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
             style={styles.gradientContainer}
         >
+            {/* --- MODIFICATION START --- */}
             <KeyboardAvoidingView
                 style={styles.keyboardAvoidingContainer}
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0} // Adjust offset if needed
+                // Use "padding" for iOS, let Android handle it natively (often requires windowSoftInputMode="adjustResize" in AndroidManifest.xml)
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
+                // Keep the offset, adjust if needed based on headers/footers outside this screen
+                keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
             >
                 <ScrollView
+                    // Changed contentContainerStyle: removed justifyContent: 'center'
                     contentContainerStyle={styles.scrollContainer}
-                    keyboardShouldPersistTaps="handled" // Dismiss keyboard on tap outside inputs
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false} // Hide scrollbar unless needed
                 >
-                     {/* Optional: Add Logo/Title here */}
-                     {/* <Image source={require('./path/to/your/logo.png')} style={styles.logo} /> */}
-                     {/* <Text style={styles.title}>Welcome</Text> */}
+            {/* --- MODIFICATION END --- */}
+                    {/* Optional: Add Logo/Title here */}
+                    {/* <Image source={require('./path/to/your/logo.png')} style={styles.logo} /> */}
+                    {/* <Text style={styles.title}>Welcome</Text> */}
 
                     <View style={styles.authContainer}>
                         {/* Tab Switcher */}
@@ -357,56 +353,47 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     keyboardAvoidingContainer: {
-        flex: 1,
+        flex: 1, // Make KAV fill the gradient container
     },
     scrollContainer: {
-        flexGrow: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        paddingVertical: 40, // Add padding for scrollability
+        flexGrow: 1, // Allow content to grow and enable scrolling
+        // Removed justifyContent: "center" to prevent jumps
+        alignItems: "center", // Keep content centered horizontally
+        paddingVertical: 40, // Keep vertical padding for spacing top/bottom
+        paddingHorizontal: 10, // Add horizontal padding for smaller screens if needed
     },
     // Optional Logo/Title styles
-    // logo: {
-    //     width: 150,
-    //     height: 150,
-    //     resizeMode: 'contain',
-    //     marginBottom: 20,
-    // },
-    // title: {
-    //     fontSize: 28,
-    //     fontWeight: 'bold',
-    //     color: colors.white,
-    //     marginBottom: 30,
-    //     textAlign: 'center',
-    // },
+    // logo: { ... },
+    // title: { ... },
     authContainer: {
         backgroundColor: colors.white,
         width: "90%",
         maxWidth: 400,
-        borderRadius: 20, // Softer corners
-        padding: 20, // Uniform padding
-        paddingTop: 0, // Tabs will have their own spacing
+        borderRadius: 20,
+        padding: 20,
+        paddingTop: 0, // Tabs manage their own top spacing
         shadowColor: colors.shadow,
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.15,
         shadowRadius: 12,
-        elevation: 10, // For Android shadow
-        overflow: 'hidden', // Important for indicator animation clipping
-        position: 'relative', // Needed for loading overlay positioning
+        elevation: 10,
+        overflow: 'hidden',
+        position: 'relative', // For loading overlay
+        // Add some margin if removing justifyContent makes it stick to the top/bottom edge
+        marginVertical: 20, // Ensures some space even without justifyContent center
     },
     tabOuterContainer: {
-        // Container to manage border/background if needed, helps with layout
         marginBottom: 25,
-        marginTop: 20, // Space from top of card
-        paddingHorizontal: 0, // Tabs will span full width inside
+        marginTop: 20,
+        paddingHorizontal: 0,
     },
     tabInnerContainer: {
         flexDirection: "row",
-        backgroundColor: colors.secondary, // Subtle background for tabs section
-        borderRadius: 30, // Pill shape
+        backgroundColor: colors.secondary,
+        borderRadius: 30,
         height: 50,
-        position: 'relative', // For absolute positioning of indicator
-        overflow: 'hidden', // Clip indicator
+        position: 'relative',
+        overflow: 'hidden',
     },
     tab: {
         flex: 1,
@@ -419,20 +406,20 @@ const styles = StyleSheet.create({
         color: colors.tabInactive,
     },
     activeTabText: {
-        color: colors.tabActive, // Active tab text color
+        color: colors.tabActive,
     },
     tabIndicator: {
         position: "absolute",
-        height: '100%', // Cover full height
-        width: '50%', // Half the width of the inner container
-        backgroundColor: colors.white, // Indicator background matching card
-        borderRadius: 30, // Match parent pill shape
-        shadowColor: colors.shadow, // Subtle shadow for depth
+        height: '100%',
+        width: '50%',
+        backgroundColor: colors.white,
+        borderRadius: 30,
+        shadowColor: colors.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 5,
-        zIndex: -1, // Behind the text
+        zIndex: -1, // Render behind text
     },
     formContent: {
         width: "100%",
@@ -442,28 +429,28 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.secondary,
-        borderRadius: 12, // More rounded inputs
+        borderRadius: 12,
         marginBottom: 15,
         width: "100%",
-        paddingHorizontal: 15, // Padding inside container
+        paddingHorizontal: 15,
     },
     inputIcon: {
         marginRight: 10,
     },
     input: {
-        flex: 1, // Take remaining space
-        height: 55, // Taller inputs
+        flex: 1,
+        height: 55,
         fontSize: 16,
         color: colors.text,
     },
     button: {
-        paddingVertical: 16, // Comfortable tap target
+        paddingVertical: 16,
         width: "100%",
-        borderRadius: 12, // Match input rounding
+        borderRadius: 12,
         alignItems: "center",
         justifyContent: 'center',
-        marginTop: 10, // Space above button
-        flexDirection: 'row', // For icon alignment
+        marginTop: 10,
+        flexDirection: 'row',
         shadowColor: colors.shadow,
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.1,
@@ -485,8 +472,8 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     googleButton: {
-        backgroundColor: colors.googleRed, // Use specific Google color
-        marginTop: 0, // Reduce space after 'or'
+        backgroundColor: colors.googleRed,
+        marginTop: 0,
     },
     googleText: {
         color: colors.white,
@@ -495,12 +482,12 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     loadingOverlay: {
-        ...StyleSheet.absoluteFillObject, // Cover the entire authContainer
-        backgroundColor: 'rgba(255, 255, 255, 0.8)', // Semi-transparent white
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(255, 255, 255, 0.8)',
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 20, // Match parent container's border radius
-        zIndex: 10, // Ensure it's on top
+        zIndex: 10,
     },
 });
 
