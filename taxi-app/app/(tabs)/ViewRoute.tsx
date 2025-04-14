@@ -21,6 +21,7 @@ import { getToken, fetchData } from "../api/api"; // Assuming correct path
 import { FontAwesome, MaterialIcons, Ionicons } from "@expo/vector-icons"; // Added Icons
 import { useNavigation } from '@react-navigation/native'; // Added
 import { StackNavigationProp } from '@react-navigation/stack'; // Added
+import { apiUrl } from '../api/apiUrl';
 
 // --- Types and Interfaces ---
 interface RouteStop {
@@ -66,7 +67,6 @@ interface SidebarProps {
 // --- Constants ---
 const { width: windowWidth } = Dimensions.get("window"); // Use if needed
 
-const apiUrl = "https://qmarshal.onrender.com"
 
 // --- Reusable Components Defined Directly In This File ---
 

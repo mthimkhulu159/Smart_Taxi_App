@@ -19,10 +19,10 @@ import { fetchData, getToken } from '../api/api'; // Assuming correct path
 import { FontAwesome, MaterialIcons, Ionicons } from '@expo/vector-icons'; // Added Ionicons
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { apiUrl } from '../api/apiUrl';
 
 // --- Constants ---
 const { width: windowWidth } = Dimensions.get('window'); // Use windowWidth if needed
-const apiUrl = "https://qmarshal.onrender.com"
 
 // --- Navigation Types (Ensure this is consistent across your app) ---
 type RootStackParamList = {

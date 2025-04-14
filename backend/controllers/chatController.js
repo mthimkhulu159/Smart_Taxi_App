@@ -67,65 +67,65 @@ exports.passengerInitiateChatSession = async (req, res) => {
 
 exports.driverInitiateChatSession = async (req, res) => {
     const driverId = req.user._id;
-  
+
     try {
-      // Find an accepted ride request for this driver.
-      // We assume that the accepted ride request has a taxi assigned,
-      // and that taxi's driverId matches the logged-in driver.
-      const rideRequest = await RideRequest.findOne({
-        status: "accepted",
-        taxi: { $exists: true },
-      }).populate("passenger taxi");
-  
-      if (!rideRequest) {
-        return res.status(404).json({
-          message: "No accepted ride request found to initiate chat.",
+        // Find the ride request linked to the driver's taxi
+        const rideRequest = await RideRequest.findOne({
+            _id: req.body.requestId, // Expect the requestId to be passed from the driver
+            status: "accepted",  // Ride request must be accepted
+            taxi: { $exists: true },  // Taxi must be assigned
+        }).populate("passenger taxi");
+
+        if (!rideRequest) {
+            return res.status(404).json({
+                message: "No accepted ride request found for this taxi to initiate chat.",
+            });
+        }
+
+        // Ensure that the taxi's driverId matches the logged-in driver.
+        if (rideRequest.taxi.driverId.toString() !== driverId.toString()) {
+            return res.status(403).json({
+                message: "You are not authorized to initiate chat for this request.",
+            });
+        }
+
+        // Check if a chat session already exists for this ride request.
+        let chatSession = await ChatSession.findOne({ rideRequest: rideRequest._id });
+        if (chatSession) {
+            return res.status(200).json({
+                message: "Chat session already exists.",
+                chatSessionId: chatSession._id,
+            });
+        }
+
+        // Create a new chat session.
+        chatSession = new ChatSession({
+            rideRequest: rideRequest._id,
+            passenger: rideRequest.passenger._id,
+            driver: driverId,
         });
-      }
-  
-      // Ensure that the taxi's driverId matches the logged-in driver.
-      if (rideRequest.taxi.driverId.toString() !== driverId.toString()) {
-        return res.status(403).json({
-          message: "You are not authorized to initiate chat for this request.",
+        await chatSession.save();
+
+        // Notify the passenger via socket if connected.
+        const passengerSocketId = getUserSocketId(rideRequest.passenger._id);
+        if (passengerSocketId) {
+            getIo().to(passengerSocketId).emit("newChatSession", {
+                chatSessionId: chatSession._id,
+                rideRequestId: rideRequest._id,
+                driverName: req.user.name,
+            });
+        }
+
+        return res.status(201).json({
+            message: "Chat session initiated successfully.",
+            chatSessionId: chatSession._id,
         });
-      }
-  
-      // Check if a chat session already exists for this ride request.
-      let chatSession = await ChatSession.findOne({ rideRequest: rideRequest._id });
-      if (chatSession) {
-        return res.status(200).json({
-          message: "Chat session already exists.",
-          chatSessionId: chatSession._id,
-        });
-      }
-  
-      // Create a new chat session.
-      chatSession = new ChatSession({
-        rideRequest: rideRequest._id,
-        passenger: rideRequest.passenger._id,
-        driver: driverId,
-      });
-      await chatSession.save();
-  
-      // Notify the passenger via socket if connected.
-      const passengerSocketId = getUserSocketId(rideRequest.passenger._id);
-      if (passengerSocketId) {
-        getIo().to(passengerSocketId).emit("newChatSession", {
-          chatSessionId: chatSession._id,
-          rideRequestId: rideRequest._id,
-          driverName: req.user.name,
-        });
-      }
-  
-      return res.status(201).json({
-        message: "Chat session initiated successfully.",
-        chatSessionId: chatSession._id,
-      });
     } catch (error) {
-      console.error("Error initiating chat session:", error);
-      return res.status(500).json({ message: "Server error initiating chat." });
+        console.error("Error initiating chat session:", error);
+        return res.status(500).json({ message: "Server error initiating chat." });
     }
-  };
+};
+
 
 exports.getChatMessages = async (req, res) => {
     const { chatSessionId } = req.params;

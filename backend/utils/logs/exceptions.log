@@ -274,3 +274,27 @@ Error: write EIO
     at console.value (node:internal/console/constructor:303:16)
     at console.log (node:internal/console/constructor:378:26)
     at NativeConnection.<anonymous> (/workspaces/Smart_Taxi_App/backend/middlewares/dbDisconnectMiddleware.js:5:13)
+[2025-04-14 10:04:40] ERROR: uncaughtException: Route.post() requires a callback function but got a [object Undefined]
+Error: Route.post() requires a callback function but got a [object Undefined]
+    at Route.<computed> [as post] (/workspaces/Smart_Taxi_App/backend/node_modules/express/lib/router/route.js:216:15)
+    at proto.<computed> [as post] (/workspaces/Smart_Taxi_App/backend/node_modules/express/lib/router/index.js:521:19)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/chatRoutes.js:13:8)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/server.js:21:20)
+[2025-04-14 10:04:42] ERROR: uncaughtException: Route.post() requires a callback function but got a [object Undefined]
+Error: Route.post() requires a callback function but got a [object Undefined]
+    at Route.<computed> [as post] (/workspaces/Smart_Taxi_App/backend/node_modules/express/lib/router/route.js:216:15)
+    at proto.<computed> [as post] (/workspaces/Smart_Taxi_App/backend/node_modules/express/lib/router/index.js:521:19)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/chatRoutes.js:13:8)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/server.js:21:20)

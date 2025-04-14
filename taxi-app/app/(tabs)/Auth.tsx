@@ -22,11 +22,11 @@ import { RootStackParamList } from "../../types/navigation"; // Adjust path if n
 import { fetchData } from "../api/api"; // Adjust path if needed
 import { useAuth } from "../context/authContext"; // Adjust path if needed
 import { LinearGradient } from 'expo-linear-gradient';
+import { apiUrl } from "../api/apiUrl";
 
 const { width } = Dimensions.get("window");
 
 // --- Configuration ---
-const apiUrl = "https://qmarshal.onrender.com"
 const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"; // ** IMPORTANT: Replace with your actual Google Client ID **
 
 // --- Color Palette ---

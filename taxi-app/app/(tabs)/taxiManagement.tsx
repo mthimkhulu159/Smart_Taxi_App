@@ -23,9 +23,9 @@ import { FontAwesome, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import io from 'socket.io-client';
+import { apiUrl } from '../api/apiUrl';
 
 // --- Constants ---
-const apiUrl = "https://qmarshal.onrender.com"
 
 // --- Types and Interfaces ---
 type Taxi = {

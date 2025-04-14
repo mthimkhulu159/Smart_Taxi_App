@@ -19,6 +19,7 @@ import { fetchData, getToken } from '../api/api'; // Assuming correct path
 import { FontAwesome, MaterialIcons, Ionicons } from '@expo/vector-icons'; // Added Ionicons
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { apiUrl } from '../api/apiUrl';
 
 // --- Types and Interfaces ---
 interface RideRequest {
@@ -57,7 +58,6 @@ interface SidebarProps {
 }
 
 // --- Constants ---
-const apiUrl = "https://qmarshal.onrender.com"
 
 
 // --- Reusable Components Defined Directly In This File ---

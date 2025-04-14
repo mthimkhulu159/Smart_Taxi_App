@@ -23,6 +23,7 @@ import { getToken, fetchData } from "../api/api"; // Assuming correct path
 import { FontAwesome, MaterialIcons, Ionicons } from "@expo/vector-icons"; // Added Ionicons
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from '@react-navigation/stack';
+import { apiUrl } from '../api/apiUrl';
 
 // --- Types and Interfaces ---
 interface Taxi {
@@ -61,7 +62,6 @@ interface SidebarProps {
 // --- Constants ---
 
 const { width: windowWidth } = Dimensions.get("window"); // Use if needed
-const apiUrl = "https://qmarshal.onrender.com"
 // *** Define AsyncStorage Key (Ensure it matches HomeScreen) ***
 const ASYNC_STORAGE_MONITOR_KEY = 'monitoredTaxiId';
 

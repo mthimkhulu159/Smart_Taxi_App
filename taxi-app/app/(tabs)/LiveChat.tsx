@@ -17,6 +17,7 @@ import { FontAwesome } from '@expo/vector-icons'; // Using FontAwesome for icons
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { getToken, fetchData } from '../api/api'; // Assuming these are correctly set up
 import { Manager, Socket } from 'socket.io-client';
+import { apiUrl } from '../api/apiUrl';
 
 // Interface for the message structure
 interface Message {
@@ -77,7 +78,6 @@ const LiveChatScreen = () => {
   const flatListRef = useRef<FlatList<Message>>(null); // Ref for FlatList
 
   // Define API URL (consider moving to a config file)
-const apiUrl = "https://qmarshal.onrender.com"
  
   // --- Effects ---
 

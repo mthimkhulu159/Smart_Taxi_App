@@ -21,9 +21,9 @@ import { fetchData, getToken } from '../api/api'; // Assuming getToken exists he
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../context/authContext'; // Assuming correct path
+import { apiUrl } from '../api/apiUrl';
 
 // --- Constants ---
-const apiUrl = "https://qmarshal.onrender.com"
 const { width: windowWidth } = Dimensions.get('window');
 
 // --- Navigation Types (Ensure this is consistent across your app) ---

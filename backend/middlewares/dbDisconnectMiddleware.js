@@ -5,11 +5,15 @@ const gracefulShutdown = () => {
     console.log('MongoDB connected');
   });
 
-  process.on('SIGINT', () => {
-    mongoose.connection.close(() => {
+  process.on('SIGINT', async () => {
+    try {
+      await mongoose.connection.close(); // Await the connection close
       console.log('MongoDB disconnected due to app termination');
       process.exit(0);
-    });
+    } catch (err) {
+      console.error('Error while disconnecting from MongoDB', err);
+      process.exit(1);
+    }
   });
 };
 
