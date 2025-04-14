@@ -21,8 +21,8 @@ import { getToken, fetchData } from "../api/api"; // Assuming correct path
 import { FontAwesome, MaterialIcons, Ionicons } from "@expo/vector-icons"; // Added Icons
 import { useNavigation } from '@react-navigation/native'; // Added
 import { StackNavigationProp } from '@react-navigation/stack'; // Added
+import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
 import { apiUrl } from '../api/apiUrl';
-
 // --- Types and Interfaces ---
 interface RouteStop {
     _id: string; // Assuming backend provides _id for stops
@@ -67,39 +67,6 @@ interface SidebarProps {
 // --- Constants ---
 const { width: windowWidth } = Dimensions.get("window"); // Use if needed
 
-
-// --- Reusable Components Defined Directly In This File ---
-
-// --- Enhanced Sidebar Component (Copied from previous screens) ---
-const Sidebar: React.FC<SidebarProps> = ({ isVisible, onClose, onNavigate, activeScreen }) => {
-  const slideAnim = useRef(new Animated.Value(-300)).current;
-  useEffect(() => { Animated.timing(slideAnim, { toValue: isVisible ? 0 : -300, duration: 300, useNativeDriver: true }).start(); }, [isVisible, slideAnim]);
-  const NavItem: React.FC<{ screen: keyof RootStackParamList; label: string; icon: React.ReactNode }> = ({ screen, label, icon }) => (
-    <TouchableOpacity style={[styles.sidebarButtonInternal, activeScreen === screen && styles.sidebarButtonActiveInternal]} onPress={() => { onNavigate(screen); onClose(); }}>
-      {icon}<Text style={[styles.sidebarButtonTextInternal, activeScreen === screen && styles.sidebarButtonTextActiveInternal]}>{label}</Text>
-    </TouchableOpacity>
-  );
-  return (
-    <Animated.View style={[styles.sidebarInternal, { transform: [{ translateX: slideAnim }] }]}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <TouchableOpacity style={styles.sidebarCloseButtonInternal} onPress={onClose}><Ionicons name="close" size={30} color="#FFFFFF" /></TouchableOpacity>
-        <View style={styles.sidebarHeaderInternal}><Ionicons name="car-sport-outline" size={40} color="#FFFFFF" style={styles.sidebarLogoIconInternal} /><Text style={styles.sidebarTitleInternal}>Shesha</Text></View>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <NavItem screen="Home" label="Home" icon={<FontAwesome name="home" size={22} color="#FFFFFF" />} />
-          <NavItem screen="requestRide" label="Request Ride" icon={<FontAwesome name="car" size={22} color="#FFFFFF" />} />
-          <NavItem screen="ViewTaxi" label="View Taxis" icon={<MaterialIcons name="local-taxi" size={22} color="#FFFFFF" />} />
-          <NavItem screen="ViewRoute" label="View Routes" icon={<MaterialIcons name="route" size={22} color="#FFFFFF" />} />
-          <NavItem screen="AcceptedRequest" label="My Ride" icon={<FontAwesome name="check-circle" size={22} color="#FFFFFF" />} />
-          <NavItem screen="AcceptedPassenger" label="View Passenger" icon={<FontAwesome name="circle" size={22} color="#FFFFFF" />} />
-          <NavItem screen="ViewRequests" label="Search Rides" icon={<FontAwesome name="search" size={22} color="#FFFFFF" />} />
-          <NavItem screen="LiveChat" label="Live Chat" icon={<Ionicons name="chatbubbles-outline" size={22} color="#FFFFFF" />} />
-          <NavItem screen="TaxiManagement" label="Manage Taxi" icon={<MaterialIcons name="settings" size={22} color="#FFFFFF" />} />
-          <NavItem screen="Profile" label="Profile" icon={<FontAwesome name="user-circle-o" size={22} color="#FFFFFF" />} />
-        </ScrollView>
-      </SafeAreaView>
-    </Animated.View>
-  );
-};
 
 // --- Loading Component (Copied from previous screens) ---
 const Loading: React.FC = () => {
@@ -203,7 +170,6 @@ const ViewRoute: React.FC = () => {
     }
   };
 
-  // Debounced Search (Optional but good for performance if typing triggers search)
     // const debouncedSearch = useRef(
     //     debounce(() => {
     //         filterRoutesFunction(); // Call the actual filtering logic
