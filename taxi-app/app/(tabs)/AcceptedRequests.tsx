@@ -10,19 +10,20 @@ import {
   SafeAreaView,      // Added
   Platform,         // Added
   Animated,         // Added
-  ViewStyle,        // Added
-  TextStyle         // Added
+  ViewStyle,         // Added
+  TextStyle          // Added
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 // *** Import AsyncStorage ***
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getToken, fetchData } from '../api/api'; // Adjust path if necessary
 import { FontAwesome, MaterialIcons, Ionicons } from '@expo/vector-icons'; // Added Icons
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Added useFocusEffect
 import { StackNavigationProp } from '@react-navigation/stack'; // Using generic Stack
 import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
 import { apiUrl } from '../api/apiUrl';
-// --- Types and Interfaces ---
+
+// --- Types and Interfaces (As provided by user) ---
 interface TaxiDetails {
   taxiId: string; // Use this ID for monitoring
   numberPlate: string;
@@ -32,12 +33,12 @@ interface TaxiDetails {
   capacity?: number;
   currentLoad?: number;
   status: string;
-  requestId: string;
+  requestId: string; // Crucial for cancellation
 }
 
-// --- Navigation Types ---
+// --- Navigation Types (As provided by user) ---
 type RootStackParamList = {
-  Home: { acceptedTaxiId?: string }; // Keep param in type for clarity, but won't use to pass ID
+  Home: { acceptedTaxiId?: string };
   requestRide: undefined;
   ViewTaxi: undefined;
   ViewRequests: undefined;
@@ -52,6 +53,7 @@ type RootStackParamList = {
 
 type AcceptedRequestScreenNavigationProp = StackNavigationProp<RootStackParamList, 'AcceptedRequest'>;
 
+// --- Sidebar Props Interface (As provided by user) ---
 interface SidebarProps {
   isVisible: boolean;
   onClose: () => void;
@@ -59,13 +61,11 @@ interface SidebarProps {
   activeScreen: keyof RootStackParamList;
 }
 
-// --- Constants ---
-
-// *** Define AsyncStorage Key (Ensure it matches HomeScreen) ***
+// --- Constants (As provided by user) ---
 const ASYNC_STORAGE_MONITOR_KEY = 'monitoredTaxiId';
 
 
-// --- Loading Component ---
+// --- Loading Component (As provided by user) ---
 const Loading: React.FC = () => {
   const spinAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => { Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 1000, useNativeDriver: true })).start(); }, [spinAnim]);
@@ -77,7 +77,7 @@ const Loading: React.FC = () => {
   );
 };
 
-// --- Action Button Component ---
+// --- Action Button Component (As provided by user) ---
 const ActionButton: React.FC<{ onPress: () => void; title: string; iconName?: any; iconFamily?: 'Ionicons' | 'MaterialIcons' | 'FontAwesome'; color?: string; textColor?: string; loading?: boolean; style?: object; disabled?: boolean }> =
     ({ onPress, title, iconName, iconFamily = 'Ionicons', color = '#003E7E', textColor = '#FFFFFF', loading = false, style = {}, disabled = false }) => {
     const IconComponent = iconFamily === 'MaterialIcons' ? MaterialIcons : iconFamily === 'FontAwesome' ? FontAwesome : Ionicons;
@@ -87,12 +87,12 @@ const ActionButton: React.FC<{ onPress: () => void; title: string; iconName?: an
         {loading ? <ActivityIndicator size="small" color={textColor} /> : ( <>
             {iconName && <IconComponent name={iconName} size={18} color={textColor} style={styles.actionButtonIcon} />}
             <Text style={[styles.actionButtonText, { color: textColor }]}>{title}</Text>
-           </> )}
+            </> )}
         </TouchableOpacity>
     );
 };
 
-// --- Info Row Component ---
+// --- Info Row Component (As provided by user) ---
 const InfoRow: React.FC<{ label: string; value: string | number | undefined; iconName: any; iconFamily?: 'Ionicons' | 'MaterialIcons' | 'FontAwesome'; valueStyle?: TextStyle }> =
     ({ label, value, iconName, iconFamily = 'Ionicons', valueStyle = {} }) => {
     const IconComponent = iconFamily === 'MaterialIcons' ? MaterialIcons : iconFamily === 'FontAwesome' ? FontAwesome : Ionicons;
@@ -111,6 +111,7 @@ const AcceptedRequestsScreen = () => {
   const [taxiDetails, setTaxiDetails] = useState<TaxiDetails | null>(null);
   const [isLoading, setLoading] = useState(true);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false); // *** ADDED: State for cancellation loading ***
   const [sidebarVisible, setSidebarVisible] = useState(false);
 
   const navigation = useNavigation<AcceptedRequestScreenNavigationProp>();
@@ -118,64 +119,165 @@ const AcceptedRequestsScreen = () => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
-  // Fetching Logic
+  // Fetching Logic (Using user's original endpoint and logic)
   const fetchTaxiDetails = async (showAlerts = false) => {
-    setLoading(true); setTaxiDetails(null);
+    // Prevent fetch if an action is in progress
+    if (isChatLoading || isCancelling) {
+        console.log("Fetch details skipped: Action in progress.");
+        return;
+    }
+    setLoading(true); setTaxiDetails(null); // Clear previous details
     const token = await getToken();
     if (!token) { Alert.alert('Authentication Error', 'Please login.'); setLoading(false); return; }
     try {
+        // *** USING USER'S ORIGINAL ENDPOINT ***
       const response = await fetchData(apiUrl, 'api/rideRequest/acceptedTaxiDetails', { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
-      if (response?.taxiDetails && Object.keys(response.taxiDetails).length > 0) { setTaxiDetails(response.taxiDetails); }
-      else { setTaxiDetails(null); if (showAlerts) { Alert.alert('No Active Ride', 'You do not have an active accepted ride request.'); } }
-    } catch (error: any) { console.error('Error fetching taxi details:', error); setTaxiDetails(null); if (showAlerts || !taxiDetails) { Alert.alert('Fetch Error', `Failed to fetch ride details: ${error.message}`); } }
-    finally { setLoading(false); }
+      // Using user's original response handling
+      if (response?.taxiDetails && Object.keys(response.taxiDetails).length > 0) {
+          setTaxiDetails(response.taxiDetails);
+      } else {
+          setTaxiDetails(null);
+          if (showAlerts) { Alert.alert('No Active Ride', 'You do not have an active accepted ride request.'); }
+      }
+    } catch (error: any) {
+        console.error('Error fetching taxi details:', error);
+        setTaxiDetails(null);
+        // Show error only on manual refresh or if details were previously null (initial load)
+        if (showAlerts || !taxiDetails) {
+            Alert.alert('Fetch Error', `Failed to fetch ride details: ${error.message}`);
+        }
+    } finally {
+        setLoading(false);
+    }
   };
 
-  // Initial Fetch & Animation
-  useEffect(() => { fetchTaxiDetails(); }, []);
-  useEffect(() => { if (!isLoading) { const t = setTimeout(() => { Animated.parallel([ Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }), Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }), ]).start(); }, 100); return () => clearTimeout(t); } }, [isLoading, fadeAnim, slideAnim]);
+  // Fetch on Focus (Replaces initial useEffect)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Only fetch if no action is currently in progress
+      if (!isChatLoading && !isCancelling) {
+          fetchTaxiDetails(false); // Fetch without alerts on focus
+      }
+      // Optional: Reset animations if needed on focus
+      fadeAnim.setValue(0);
+      slideAnim.setValue(30);
+    }, []) // Empty dependency array ensures this runs once per focus
+  );
+
+  // Animation Effect (As provided by user)
+  useEffect(() => {
+      if (!isLoading) {
+          const t = setTimeout(() => {
+              Animated.parallel([
+                  Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+                  Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+              ]).start();
+          }, 100);
+          return () => clearTimeout(t);
+      }
+  }, [isLoading, fadeAnim, slideAnim]);
 
 
-  // Chat Initiation Handler
+  // Chat Initiation Handler (Using user's original endpoint and logic, added check for isCancelling)
   const handleChat = async () => {
-    if (!taxiDetails) return;
+    // *** ADDED: Prevent action if cancelling is in progress ***
+    if (!taxiDetails || isChatLoading || isCancelling) return;
+
     setIsChatLoading(true);
     const token = await getToken(); if (!token) { Alert.alert('Authentication Error', 'Please login.'); setIsChatLoading(false); return; }
     try {
+        // *** USING USER'S ORIGINAL ENDPOINT ***
       const response = await fetchData(apiUrl, 'api/chat/passenger-initiate', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: taxiDetails.requestId }), });
+      // Using user's original response handling
       if (response?.chatSessionId) { handleNavigate('LiveChat', { chatSessionId: response.chatSessionId }); }
       else { throw new Error(response?.message || 'Failed to initiate chat session.'); }
     } catch (error: any) { console.error('Error initiating chat:', error); Alert.alert('Chat Error', error.message || 'Could not start chat session.'); }
-    finally { setIsChatLoading(false); }
+    finally { setIsChatLoading(false); } // Ensure state is reset
   };
 
-  // Cancel Ride Handler (Placeholder)
-  const handleCancelRide = (requestId: string) => { Alert.alert( 'Confirm Cancellation', 'Are you sure you want to cancel this ride request?', [ { text: 'Keep Ride', style: 'cancel' }, { text: 'Cancel Ride', style: 'destructive', onPress: async () => { Alert.alert('Not Implemented', 'Ride cancellation is not yet available for passengers.'); /* Add backend call here */ } } ] ); };
+  // *** MODIFIED: Implement Cancel Ride Handler for Passenger ***
+  const handleCancelRide = (requestId: string) => {
+     // *** ADDED: Prevent action if another action is in progress ***
+     if (isChatLoading || isCancelling) return;
 
-   // Helper to style status text
+     // Using user's original Alert structure
+     Alert.alert(
+         'Confirm Cancellation',
+         'Are you sure you want to cancel this ride request?',
+         [
+             { text: 'Keep Ride', style: 'cancel', onPress: () => {} },
+             {
+                 text: 'Cancel Ride',
+                 style: 'destructive',
+                 onPress: async () => {
+                     // --- Start of Added Passenger Cancellation Logic ---
+                     if (!requestId) {
+                         Alert.alert('Error', 'Cannot cancel ride: Request ID is missing.');
+                         return;
+                     }
+                     setIsCancelling(true); // Set loading state
+                     const token = await getToken();
+                     if (!token) {
+                         Alert.alert('Authentication Error', 'Please login.');
+                         setIsCancelling(false);
+                         return;
+                     }
+                     try {
+                         // *** USING THE NEW ENDPOINT REQUIRED FOR PASSENGER CANCELLATION ***
+                         // This endpoint corresponds to the backend route specifically for passenger cancellation.
+                         const response = await fetchData(apiUrl, `api/riderequests/${requestId}/cancel/passenger`, {
+                             method: 'DELETE', // Use DELETE method as defined in backend routes
+                             headers: { Authorization: `Bearer ${token}` },
+                         });
+
+                         // Check for successful response (adjust based on your API)
+                         // Passenger cancellation usually results in deletion, so a success message is typical
+                         if (response?.message === "Ride request successfully cancelled.") {
+                              Alert.alert('Success', 'Your ride request has been cancelled.');
+                              // Clear the details from the screen as the ride is gone
+                              setTaxiDetails(null);
+                              // Optional: Navigate away after cancellation
+                              // handleNavigate('Home');
+                         } else {
+                             // Handle potential backend errors or unexpected responses
+                             throw new Error(response?.error || response?.message || 'Failed to cancel ride.');
+                         }
+                     } catch (error: any) {
+                         console.error('Error cancelling ride:', error);
+                         Alert.alert('Cancellation Error', `Could not cancel ride: ${error.message}`);
+                     } finally {
+                         setIsCancelling(false); // Reset loading state
+                     }
+                     // --- End of Added Passenger Cancellation Logic ---
+                 }
+             }
+         ]
+     );
+  };
+
+   // Helper to style status text (As provided by user)
    const getStatusStyle = (status: string): TextStyle => { switch (status?.toLowerCase()) { case 'accepted': return { color: 'green', fontWeight: 'bold' }; case 'pending': return { color: 'orange', fontWeight: 'bold' }; case 'picked_up': return { color: '#0052A2', fontWeight: 'bold' }; case 'dropped_off': return { color: '#555', fontWeight: 'bold' }; case 'cancelled': return { color: 'red', fontWeight: 'bold' }; default: return { color: '#333' }; } };
 
-  // Navigation Handler
+  // Navigation Handler (As provided by user)
   const handleNavigate = (screen: keyof RootStackParamList, params?: any) => {
      setSidebarVisible(false);
-     // Use the switch statement for type safety
-      switch (screen) {
-        case 'Home': navigation.navigate({ name: 'Home', params: params, merge: true }); break; // Pass params if needed by Home (though not for monitoring ID anymore)
-        case 'requestRide': navigation.navigate({ name: 'requestRide', params: params, merge: true }); break;
-        case 'ViewTaxi': navigation.navigate({ name: 'ViewTaxi', params: params, merge: true }); break;
-        case 'ViewRoute': navigation.navigate({ name: 'ViewRoute', params: params, merge: true }); break;
-        case 'ViewRequests': navigation.navigate({ name: 'ViewRequests', params: params, merge: true }); break;
-        case 'LiveChat': if (params?.chatSessionId) { navigation.navigate('LiveChat', { chatSessionId: params.chatSessionId }); } else { console.warn("Missing chatSessionId for LiveChat navigation."); } break;
-        case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: params, merge: true }); break;
-        case 'Profile': navigation.navigate({ name: 'Profile', params: params, merge: true }); break;
-        case 'AcceptedRequest': break; // Already here
-        case 'AcceptedPassenger': navigation.navigate({ name: 'AcceptedPassenger', params: params, merge: true }); break;
-        case 'Auth': navigation.navigate({ name: 'Auth', params: params, merge: true }); break;
-        default: console.warn(`Attempted to navigate to unhandled screen: ${screen}`); break;
+     switch (screen) {
+       case 'Home': navigation.navigate({ name: 'Home', params: params, merge: true }); break;
+       case 'requestRide': navigation.navigate({ name: 'requestRide', params: params, merge: true }); break;
+       case 'ViewTaxi': navigation.navigate({ name: 'ViewTaxi', params: params, merge: true }); break;
+       case 'ViewRoute': navigation.navigate({ name: 'ViewRoute', params: params, merge: true }); break;
+       case 'ViewRequests': navigation.navigate({ name: 'ViewRequests', params: params, merge: true }); break;
+       case 'LiveChat': if (params?.chatSessionId) { navigation.navigate('LiveChat', { chatSessionId: params.chatSessionId }); } else { console.warn("Missing chatSessionId for LiveChat navigation."); } break;
+       case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: params, merge: true }); break;
+       case 'Profile': navigation.navigate({ name: 'Profile', params: params, merge: true }); break;
+       case 'AcceptedRequest': break; // Already here
+       case 'AcceptedPassenger': navigation.navigate({ name: 'AcceptedPassenger', params: params, merge: true }); break;
+       case 'Auth': navigation.navigate({ name: 'Auth', params: params, merge: true }); break;
+       default: console.warn(`Attempted to navigate to unhandled screen: ${screen}`); break;
      }
    };
 
-   // *** Handler for Monitor Button ***
+   // Monitor Handler (As provided by user)
    const handleMonitor = async () => {
        if (!taxiDetails?.taxiId) {
            Alert.alert("Error", "Cannot monitor taxi, ID is missing.");
@@ -184,7 +286,6 @@ const AcceptedRequestsScreen = () => {
        try {
            console.log(`Saving taxiId ${taxiDetails.taxiId} to AsyncStorage and navigating Home...`);
            await AsyncStorage.setItem(ASYNC_STORAGE_MONITOR_KEY, taxiDetails.taxiId);
-           // Navigate to Home without params, HomeScreen will read from AsyncStorage
            handleNavigate('Home');
        } catch (e) {
            console.error("Failed to save monitoredTaxiId to AsyncStorage", e);
@@ -192,59 +293,91 @@ const AcceptedRequestsScreen = () => {
        }
    };
 
-  const toggleSidebar = () => { setSidebarVisible(!sidebarVisible); };
+  const toggleSidebar = () => { setSidebarVisible(false); };
 
-  // --- Render Logic ---
+  // --- Render Logic (Update button states only) ---
   return (
     <LinearGradient colors={['#FFFFFF', '#E8F0FE']} style={styles.gradient}>
       <SafeAreaView style={styles.safeArea}>
-         <Sidebar isVisible={sidebarVisible} onClose={toggleSidebar} onNavigate={handleNavigate} activeScreen="AcceptedRequest" />
+          <Sidebar isVisible={sidebarVisible} onClose={toggleSidebar} onNavigate={handleNavigate} activeScreen="AcceptedRequest" />
         <Animated.View style={[styles.mainContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <View style={styles.header}>
-                <TouchableOpacity style={styles.headerButton} onPress={toggleSidebar}><Ionicons name="menu" size={32} color="#003E7E" /></TouchableOpacity>
+                {/* Added disabled state */}
+                <TouchableOpacity style={styles.headerButton} onPress={toggleSidebar} disabled={isChatLoading || isCancelling}>
+                    <Ionicons name="menu" size={32} color="#003E7E" />
+                </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Ride Details</Text>
-                 <TouchableOpacity style={styles.headerButton} onPress={() => fetchTaxiDetails(true)} disabled={isLoading}>
-                    {isLoading ? <ActivityIndicator size="small" color="#003E7E" /> : <Ionicons name="refresh" size={28} color="#003E7E" />}
-                 </TouchableOpacity>
+                 {/* Added disabled state */}
+                <TouchableOpacity style={styles.headerButton} onPress={() => fetchTaxiDetails(true)} disabled={isLoading || isChatLoading || isCancelling}>
+                    {(isLoading && !isChatLoading && !isCancelling) ? <ActivityIndicator size="small" color="#003E7E" /> : <Ionicons name="refresh" size={28} color="#003E7E" />}
+                </TouchableOpacity>
             </View>
-             {isLoading ? <Loading /> : taxiDetails ? (
-                 <ScrollView contentContainerStyle={styles.scrollContent}>
-                     <View style={styles.detailsCard}>
-                         <View style={styles.detailsCardHeader}>
-                             <MaterialIcons name="local-taxi" size={24} color="#003E7E" />
-                             <Text style={styles.detailsCardTitle}>{taxiDetails.numberPlate}</Text>
-                              <Text style={[styles.detailsStatus, getStatusStyle(taxiDetails.status)]}>{taxiDetails.status}</Text>
-                         </View>
-                         <View style={styles.detailsCardBody}>
-                             <InfoRow label="Driver" value={taxiDetails.driverName} iconName="person-outline" />
-                             <InfoRow label="Location" value={taxiDetails.currentStop} iconName="location-outline" />
-                              {taxiDetails.route && <InfoRow label="Route" value={taxiDetails.route} iconName="map-outline"/>}
-                              {taxiDetails.currentLoad !== undefined && <InfoRow label="Load" value={taxiDetails.capacity !== undefined ? `${taxiDetails.currentLoad} / ${taxiDetails.capacity}` : taxiDetails.currentLoad} iconName="people-outline"/>}
-                             {/* <InfoRow label="Request ID" value={taxiDetails.requestId} iconName="document-text-outline"/> */}
-                         </View>
-                         <View style={styles.detailsCardFooter}>
-                              <ActionButton title="Cancel Ride" onPress={() => handleCancelRide(taxiDetails.requestId)} iconName="close-circle-outline" style={styles.actionButtonSmall} color="#dc3545" disabled={isChatLoading} />
-                              <ActionButton title="Chat with Driver" onPress={handleChat} iconName="chatbubble-ellipses-outline" style={styles.actionButtonSmall} color="#007bff" loading={isChatLoading} disabled={isChatLoading} />
-                              {/* *** Updated Monitor Button *** */}
-                              <ActionButton title="Monitor Live" onPress={handleMonitor} iconName="eye-outline" style={styles.actionButtonSmall} color="#17a2b8" disabled={isChatLoading} />
-                         </View>
-                     </View>
-                 </ScrollView>
-             ) : (
+             {/* Using user's original loading/content structure */}
+            {isLoading ? <Loading /> : taxiDetails ? (
+                <ScrollView contentContainerStyle={styles.scrollContent}>
+                    <View style={styles.detailsCard}>
+                        <View style={styles.detailsCardHeader}>
+                            <MaterialIcons name="local-taxi" size={24} color="#003E7E" />
+                            <Text style={styles.detailsCardTitle}>{taxiDetails.numberPlate}</Text>
+                             <Text style={[styles.detailsStatus, getStatusStyle(taxiDetails.status)]}>{taxiDetails.status}</Text>
+                        </View>
+                        <View style={styles.detailsCardBody}>
+                            <InfoRow label="Driver" value={taxiDetails.driverName} iconName="person-outline" />
+                            <InfoRow label="Location" value={taxiDetails.currentStop} iconName="location-outline" />
+                             {taxiDetails.route && <InfoRow label="Route" value={taxiDetails.route} iconName="map-outline"/>}
+                             {taxiDetails.currentLoad !== undefined && <InfoRow label="Load" value={taxiDetails.capacity !== undefined ? `${taxiDetails.currentLoad} / ${taxiDetails.capacity}` : taxiDetails.currentLoad} iconName="people-outline"/>}
+                            {/* <InfoRow label="Request ID" value={taxiDetails.requestId} iconName="document-text-outline"/> */}
+                        </View>
+                        <View style={styles.detailsCardFooter}>
+                            <ActionButton
+                                title="Cancel Ride"
+                                // Pass the requestId from state
+                                onPress={() => handleCancelRide(taxiDetails.requestId)}
+                                iconName="close-circle-outline"
+                                style={styles.actionButtonSmall}
+                                color="#dc3545"
+                                // *** UPDATED: Set loading and disabled states ***
+                                loading={isCancelling}
+                                disabled={isChatLoading || isCancelling}
+                            />
+                            <ActionButton
+                                title="Chat with Driver"
+                                onPress={handleChat}
+                                iconName="chatbubble-ellipses-outline"
+                                style={styles.actionButtonSmall}
+                                color="#007bff"
+                                // Using user's original loading state
+                                loading={isChatLoading}
+                                // *** UPDATED: Disable if cancelling is in progress ***
+                                disabled={isChatLoading || isCancelling}
+                            />
+                            <ActionButton
+                                title="Monitor Live"
+                                onPress={handleMonitor}
+                                iconName="eye-outline"
+                                style={styles.actionButtonSmall}
+                                color="#17a2b8"
+                                // *** UPDATED: Disable if any action is in progress ***
+                                disabled={isChatLoading || isCancelling}
+                            />
+                        </View>
+                    </View>
+                </ScrollView>
+            ) : (
                  <View style={styles.emptyContainer}>
                     <Ionicons name="car-outline" size={60} color="#888" />
                     <Text style={styles.emptyText}>You don't have an active ride request.</Text>
                     <Text style={styles.emptySubText}>Your accepted ride details will appear here.</Text>
                     <ActionButton title="Request a Ride" onPress={() => handleNavigate('requestRide')} style={{marginTop: 20}}/>
                  </View>
-             )}
+            )}
         </Animated.View>
       </SafeAreaView>
     </LinearGradient>
   );
 };
 
-// --- Styles ---
+// --- Styles --- (As provided by user)
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: 'transparent' },
@@ -259,7 +392,7 @@ const styles = StyleSheet.create({
    detailsStatus: { fontSize: 14, fontWeight: 'bold', marginLeft: 10, textAlign: 'right', },
   detailsCardBody: { paddingHorizontal: 15, paddingTop: 5, paddingBottom: 15, },
    detailsCardFooter: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 10, paddingHorizontal: 10, borderTopWidth: 1, borderTopColor: '#EEEEEE', marginTop: 10, },
-   actionButtonSmall: { paddingVertical: 10, paddingHorizontal: 10, marginHorizontal: 4, flexShrink: 1, minWidth: 100, },
+   actionButtonSmall: { paddingVertical: 10, paddingHorizontal: 10, marginHorizontal: 4, flexShrink: 1, minWidth: 100, alignItems: 'center', justifyContent: 'center' }, // Added centering
   infoRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
   infoIcon: { marginRight: 10, width: 20, textAlign: 'center' },
   infoLabel: { fontSize: 15, color: '#555', fontWeight: '500', width: 95 },
@@ -270,7 +403,7 @@ const styles = StyleSheet.create({
     actionButtonBase: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2 },
     actionButtonIcon: { marginRight: 10 },
     actionButtonText: { fontSize: 16, fontWeight: '600', textAlign: 'center'},
-    actionButtonDisabled: { backgroundColor: '#A0A0A0', elevation: 0, shadowOpacity: 0 },
+    actionButtonDisabled: { backgroundColor: '#A0A0A0', elevation: 0, shadowOpacity: 0, opacity: 0.7 }, // Added opacity
     sidebarInternal: { position: 'absolute', top: 0, left: 0, bottom: 0, width: 300, backgroundColor: '#003E7E', zIndex: 1000, elevation: Platform.OS === 'android' ? 10: 0, shadowColor: '#000', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.3, shadowRadius: 5, paddingTop: Platform.OS === 'ios' ? 20 : 0 },
     sidebarCloseButtonInternal: { position: 'absolute', top: Platform.OS === 'android' ? 45 : 55, right: 15, zIndex: 1010, padding: 5 },
     sidebarHeaderInternal: { alignItems: 'center', marginBottom: 30, paddingTop: 60 },
