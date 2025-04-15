@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "shesha",
+    "name": "Qmarshal",
     "slug": "taxi-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,7 +16,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.moruditech.shesha"
+      "package": "com.moruditech.qmarshal"
     },
     "web": {
       "bundler": "metro",
