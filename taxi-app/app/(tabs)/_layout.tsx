@@ -13,7 +13,7 @@ import AcceptedPassengersScreen from './AcceptedPassenger';
 import AcceptedRequestsScreen from './AcceptedRequests';
 import ViewRequestScreen from './ViewRequests';
 import ViewRoute from './ViewRoute';
-
+import ForgotPassword from './ForgotPassword';
 const Stack = createStackNavigator();
 
 export default function TabLayout() {
@@ -85,11 +85,18 @@ export default function TabLayout() {
             />
         </>
       ) : (
+        <>
         <Stack.Screen
           name="Auth"
           component={AuthScreen}
           options={{ headerShown: false }}
         />
+        <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPassword}
+        options={{ headerShown: false }}
+      />
+      </>
       )}
     </Stack.Navigator>
   );

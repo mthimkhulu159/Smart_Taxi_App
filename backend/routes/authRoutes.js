@@ -1,8 +1,7 @@
 const express = require("express");
 const passport = require("passport");
 const authController = require('../controllers/authController');
-const { protect } = require('../middlewares/authMiddleware');
-
+const { check } = require("express-validator")
 
 const router = express.Router();
 
@@ -29,8 +28,30 @@ router.post('/register', authController.registerUser);
 router.post('/login', authController.loginUser);
 
 
-router.post('/forgot-password', authController.requestPasswordReset);
-router.post('/reset-password/:token', authController.resetPassword);
+// Forgot password
+router.post(
+  "/forgot-password",
+  [check("email", "Please enter a valid email.").isEmail()],
+  authController.forgotPassword
+);
 
+// Verify token
+router.post(
+  "/verify-token",
+  [check("email", "Please enter a valid email.").isEmail(), check("token", "Token is required.").notEmpty()],
+  authController.verifyToken
+);
+
+// Reset password
+router.post(
+  "/reset-password",
+  [
+    check("email", "Please enter a valid email.").isEmail(),
+    check("token", "Token is required.").notEmpty(),
+    check("newPassword", "Password should be at least 6 characters.").isLength({ min: 6 }),
+    check("confirmPassword", "Password confirmation is required.").exists(),
+  ],
+  authController.resetPassword
+);
 
 module.exports = router;

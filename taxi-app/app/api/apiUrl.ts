@@ -1,1 +1,1 @@
-export const apiUrl = 'https://fluffy-space-trout-7vgv67xv9xrhw77-3000.app.github.dev';
+export const apiUrl = 'https://organic-bassoon-g9rwxvvw94xcw9v6-3000.app.github.dev';

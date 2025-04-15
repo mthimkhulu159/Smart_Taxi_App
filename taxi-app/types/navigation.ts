@@ -8,5 +8,6 @@ export type RootStackParamList = {
     Help: undefined;
     Settings: undefined;
     AcceptedRequest: undefined;
+    ForgotPassword: undefined;
   };
   

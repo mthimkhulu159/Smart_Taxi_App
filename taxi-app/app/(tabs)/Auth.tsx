@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, ElementRef } from "react";
 import {
     View,
     Text,
@@ -7,45 +7,44 @@ import {
     StyleSheet,
     Animated,
     Alert,
-    KeyboardAvoidingView, // <-- Keep this import
-    Platform,             // <-- Keep this import
-    ScrollView,           // <-- Keep this import
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
     Dimensions,
     ActivityIndicator,
     Easing,
+    LayoutChangeEvent,
 } from "react-native";
-import { AntDesign, Feather } from "@expo/vector-icons";
-import * as Google from "expo-auth-session/providers/google";
+import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
-import { RootStackParamList } from "../../types/navigation"; // Adjust path if needed
-import { fetchData } from "../api/api"; // Adjust path if needed
-import { useAuth } from "../context/authContext"; // Adjust path if needed
-import { LinearGradient } from 'expo-linear-gradient';
-import { apiUrl } from "../api/apiUrl";
+import { RootStackParamList } from "../../types/navigation"; // Adjust path as needed
+import { fetchData } from "../api/api"; // Adjust path as needed
+import { useAuth } from "../context/authContext"; // Adjust path as needed
+// Removed LinearGradient as we're using a solid background
+import { apiUrl } from "../api/apiUrl"; // Adjust path as needed
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
-// --- Configuration ---
-const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"; // ** IMPORTANT: Replace with your actual Google Client ID **
-
-// --- Color Palette ---
+// --- REDESIGNED Color Palette (Black, Blue, White) ---
 const colors = {
-    primary: '#6C63FF',
-    primaryDark: '#574EDB',
-    secondary: '#F0F2F5',
-    backgroundGradientStart: '#7F78FF',
-    backgroundGradientEnd: '#6C63FF',
-    text: '#333',
-    textLight: '#FFF',
-    placeholder: '#A0A0A0',
-    white: '#FFFFFF',
-    black: '#000000',
-    error: '#E53E3E',
-    googleRed: '#DB4437',
-    shadow: '#000',
-    tabInactive: '#A0A0A0',
-    tabActive: '#6C63FF',
+    background: '#29335C',           // Black background
+    primaryAccent: '#007AFF',         // Vibrant Blue accent (e.g., iOS blue)
+    textPrimary: '#FFFFFF',           // White main text
+    textSecondary: 'rgba(255, 255, 255, 0.7)', // Dimmer white/grey
+    placeholder: 'rgba(255, 255, 255, 0.6)', // Lighter placeholder for dark bg
+    inputBorder: 'rgba(255, 255, 255, 0.4)',  // Subtle white border for inputs
+    inputBackground: 'rgba(255, 255, 255, 0.1)', // Optional: slight contrast for input field
+    error: '#FF3B30',                 // Standard Red for errors (iOS red)
+    link: '#007AFF',                  // Blue for links (same as accent)
+    tabInactive: 'rgba(255, 255, 255, 0.7)', // Dim white for inactive tab
+    tabActive: '#FFFFFF',               // Bright white for active tab
+    tabIndicator: '#007AFF',          // Blue indicator
+    buttonText: '#FFFFFF',              // White text on blue button
+    loadingBg: 'rgba(0, 0, 0, 0.7)',    // Dark overlay for loading
+    black: '#000000',                   // Explicit black for shadows etc.
+    white: '#FFFFFF',                   // Explicit white
+    blue: '#007AFF',                   // Explicit blue
 };
 
 // --- AuthScreen Component ---
@@ -56,108 +55,74 @@ const AuthScreen = () => {
     const [password, setPassword] = useState("");
     const [name, setName] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const navigation = useNavigation<StackNavigationProp<RootStackParamList, "Home">>(); // Adjust "Home" if needed
+    const navigation = useNavigation<StackNavigationProp<RootStackParamList, "Home">>();
 
-    const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-        clientId: GOOGLE_CLIENT_ID,
-    });
-
-    const tabTranslateX = useRef(new Animated.Value(0)).current;
+    // Animation values
     const formOpacity = useRef(new Animated.Value(1)).current;
+    const formTranslateY = useRef(new Animated.Value(0)).current;
+    const tabIndicatorX = useRef(new Animated.Value(0)).current;
+    const tabIndicatorWidth = useRef(new Animated.Value(0)).current;
+
+    // Refs for layout measurement
+    const loginTabRef = useRef<ElementRef<typeof TouchableOpacity>>(null);
+    const signupTabRef = useRef<ElementRef<typeof TouchableOpacity>>(null);
+    const [tabLayouts, setTabLayouts] = useState<{ [key: string]: { x: number; width: number } }>({});
+
+    const measureTabLayout = (tabName: 'login' | 'signup', event: LayoutChangeEvent) => {
+        const { x, width } = event.nativeEvent.layout;
+        if (width > 0) {
+             setTabLayouts(prev => ({ ...prev, [tabName]: { x, width } }));
+        }
+    };
 
     useEffect(() => {
-        const handleGoogleResponse = async () => {
-            if (response?.type === "success") {
-                setIsLoading(true);
-                const { id_token } = response.params;
-                const endpoint = activeTab === 'signup' ? "auth/google/signup" : "auth/google/login";
-
-                try {
-                    const apiResponse = await fetchData(apiUrl, endpoint, {
-                        method: "POST",
-                        body: { token: id_token },
-                    });
-
-                    if (apiResponse?.token) {
-                        await login(apiResponse.token);
-                        setTimeout(() => Alert.alert("Success", `Welcome ${activeTab === 'signup' ? "!" : "back!"}`), 500);
-                        navigation.navigate("Home"); // Adjust "Home" if needed
-                    } else {
-                        throw new Error(apiResponse?.message || "Google authentication failed.");
-                    }
-                } catch (error: any) {
-                    console.error("Google Sign-In Error:", error);
-                    Alert.alert("Error", error?.message || "An error occurred during Google sign-in.");
-                } finally {
-                    setIsLoading(false);
-                }
-            } else if (response?.type === "error") {
-                 console.error("Google Auth Error Response:", response.error);
-                 Alert.alert("Error", "Google sign-in was cancelled or failed. Please try again.");
-            } else if (response?.type === 'cancel'){
-                 console.log("Google sign-in cancelled by user.");
-                 // Optionally show a subtle feedback or just do nothing
-            }
-        };
-
-        handleGoogleResponse();
-    }, [response, activeTab, login, navigation]);
-
+        if (tabLayouts.login && tabLayouts.signup) {
+            const targetLayout = activeTab === 'login' ? tabLayouts.login : tabLayouts.signup;
+            const springConfig = { tension: 100, friction: 15, useNativeDriver: false };
+            Animated.spring(tabIndicatorX, { toValue: targetLayout.x, ...springConfig }).start();
+            Animated.spring(tabIndicatorWidth, { toValue: targetLayout.width, ...springConfig }).start();
+        }
+    }, [activeTab, tabLayouts, tabIndicatorX, tabIndicatorWidth]);
 
     const switchTab = (tab: 'login' | 'signup') => {
-        if (tab === activeTab) return;
-
-        const targetValue = tab === 'login' ? 0 : (width * 0.9 - 40) / 2;
+        if (tab === activeTab || !tabLayouts.login || !tabLayouts.signup) return;
 
         Animated.parallel([
-            Animated.timing(formOpacity, {
-                toValue: 0,
-                duration: 150,
-                useNativeDriver: true,
-                easing: Easing.ease,
-            }),
-            Animated.spring(tabTranslateX, {
-                toValue: targetValue,
-                friction: 7,
-                tension: 50,
-                useNativeDriver: true,
-            })
+            Animated.timing(formOpacity, { toValue: 0, duration: 200, easing: Easing.ease, useNativeDriver: true }),
+            Animated.timing(formTranslateY, { toValue: -20, duration: 200, easing: Easing.ease, useNativeDriver: true }),
         ]).start(() => {
             setActiveTab(tab);
+            // Reset fields when switching tabs
             setEmail('');
             setPassword('');
             setName('');
-            Animated.timing(formOpacity, {
-                toValue: 1,
-                duration: 150,
-                delay: 50,
-                useNativeDriver: true,
-                easing: Easing.ease,
-            }).start();
+            formTranslateY.setValue(20); // Prepare for entry animation
+
+            Animated.parallel([
+                 Animated.timing(formOpacity, { toValue: 1, duration: 200, easing: Easing.ease, delay: 50, useNativeDriver: true }),
+                 Animated.timing(formTranslateY, { toValue: 0, duration: 200, easing: Easing.ease, delay: 50, useNativeDriver: true }),
+            ]).start();
         });
     };
 
-    const handleSignUpSubmit = async () => {
+     // --- Form Submission Handlers ---
+     const handleSignUpSubmit = async () => {
         if (!name || !email || !password) {
             Alert.alert("Missing Information", "Please fill in all fields.");
             return;
         }
         setIsLoading(true);
-        const endpoint = "auth/register";
-        const body = { name, email, password };
-
         try {
-            const response = await fetchData(apiUrl, endpoint, { method: "POST", body });
+            const response = await fetchData(apiUrl, "auth/register", { method: "POST", body: { name, email, password } });
             if (response?.token) {
                 await login(response.token);
-                setTimeout(() => Alert.alert("Success", "Account created successfully!"), 500);
-                navigation.navigate("Home"); // Adjust "Home" if needed
+                navigation.navigate("Home");
             } else {
-                 throw new Error(response?.message || "Registration failed.");
+                throw new Error(response?.message || "Registration failed.");
             }
         } catch (error: any) {
-             console.error("Sign Up Error:", error);
-             Alert.alert("Error", error?.message || "An error occurred during sign up.");
+            console.error("Sign Up Error:", error);
+            Alert.alert("Error", error?.message || "An error occurred during sign up.");
         } finally {
             setIsLoading(false);
         }
@@ -169,326 +134,315 @@ const AuthScreen = () => {
             return;
         }
         setIsLoading(true);
-        const endpoint = "auth/login";
-        const body = { email, password };
-
         try {
-            const response = await fetchData(apiUrl, endpoint, { method: "POST", body });
+            const response = await fetchData(apiUrl, "auth/login", { method: "POST", body: { email, password } });
             if (response?.token) {
                 await login(response.token);
-                setTimeout(() => Alert.alert("Success", "Welcome back!"), 500);
-                navigation.navigate("Home"); // Adjust "Home" if needed
+                navigation.navigate("Home");
             } else {
-                 throw new Error(response?.message || "Invalid credentials.");
+                throw new Error(response?.message || "Invalid credentials.");
             }
         } catch (error: any) {
              console.error("Login Error:", error);
-             Alert.alert("Error", error?.message || "Invalid credentials. Please try again.");
+             Alert.alert("Error", error?.message || "Invalid credentials or login failed.");
         } finally {
-            setIsLoading(false);
-        }
+             setIsLoading(false);
+         }
     };
 
-    const handleGoogleLogin = () => {
-        promptAsync();
+    const handleForgotPassword = () => {
+        console.log("Navigate to Forgot Password Screen");
+        navigation.navigate('ForgotPassword'); // Add this screen to RootStackParamList
+        Alert.alert("Forgot Password", "Password reset functionality is not yet implemented.");
     };
 
+    // --- Render Form Function ---
     const renderForm = () => {
         const commonInputs = (
             <>
-                <View style={styles.inputContainer}>
-                    <Feather name="mail" size={20} color={colors.placeholder} style={styles.inputIcon} />
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Email Address"
-                        placeholderTextColor={colors.placeholder}
-                        keyboardType="email-address"
-                        value={email}
-                        onChangeText={setEmail}
-                        autoCapitalize="none"
-                    />
+                <View style={styles.inputGroup}>
+                     <Feather name="mail" size={20} color={colors.placeholder} style={styles.inputIcon} />
+                     <TextInput
+                         style={styles.input}
+                         placeholder="Email Address"
+                         placeholderTextColor={colors.placeholder}
+                         keyboardType="email-address"
+                         value={email}
+                         onChangeText={setEmail}
+                         autoCapitalize="none"
+                         textContentType="emailAddress"
+                         selectionColor={colors.primaryAccent} // Blue cursor
+                         keyboardAppearance="dark" // Hint for dark keyboard on iOS
+                     />
                 </View>
-                <View style={styles.inputContainer}>
-                    <Feather name="lock" size={20} color={colors.placeholder} style={styles.inputIcon} />
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Password"
-                        placeholderTextColor={colors.placeholder}
-                        secureTextEntry
-                        value={password}
-                        onChangeText={setPassword}
-                    />
+                <View style={styles.inputGroup}>
+                     <Feather name="lock" size={20} color={colors.placeholder} style={styles.inputIcon} />
+                     <TextInput
+                         style={styles.input}
+                         placeholder="Password"
+                         placeholderTextColor={colors.placeholder}
+                         secureTextEntry
+                         value={password}
+                         onChangeText={setPassword}
+                         textContentType="password"
+                         selectionColor={colors.primaryAccent} // Blue cursor
+                         keyboardAppearance="dark" // Hint for dark keyboard on iOS
+                     />
                 </View>
             </>
         );
 
-        if (activeTab === "login") {
-            return (
-                <>
-                    {commonInputs}
-                    <TouchableOpacity
-                        style={[styles.button, styles.primaryButton]}
-                        onPress={handleLoginSubmit}
-                        disabled={isLoading}
-                    >
-                        <Text style={styles.buttonText}>Login</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.orText}>or</Text>
-                    <TouchableOpacity
-                        style={[styles.button, styles.googleButton]}
-                        onPress={handleGoogleLogin}
-                        disabled={isLoading || !request}
-                    >
-                        <AntDesign name="google" size={20} color={colors.white} />
-                        <Text style={styles.googleText}>Login with Google</Text>
-                    </TouchableOpacity>
-                </>
-            );
-        } else { // Sign Up
-            return (
-                <>
-                    <View style={styles.inputContainer}>
-                        <Feather name="user" size={20} color={colors.placeholder} style={styles.inputIcon} />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Full Name"
-                            placeholderTextColor={colors.placeholder}
-                            value={name}
-                            onChangeText={setName}
-                            autoCapitalize="words"
-                        />
-                    </View>
-                    {commonInputs}
-                    <TouchableOpacity
-                        style={[styles.button, styles.primaryButton]}
-                        onPress={handleSignUpSubmit}
-                        disabled={isLoading}
-                    >
-                        <Text style={styles.buttonText}>Sign Up</Text>
-                    </TouchableOpacity>
-                     <Text style={styles.orText}>or</Text>
-                    <TouchableOpacity
-                        style={[styles.button, styles.googleButton]}
-                        onPress={handleGoogleLogin}
-                        disabled={isLoading || !request}
-                    >
-                        <AntDesign name="google" size={20} color={colors.white} />
-                        <Text style={styles.googleText}>Sign Up with Google</Text>
-                    </TouchableOpacity>
-                </>
-            );
-        }
+        return (
+            <Animated.View style={[
+                styles.formContainer,
+                { opacity: formOpacity, transform: [{ translateY: formTranslateY }] }
+            ]}>
+                {activeTab === 'signup' && (
+                     <View style={styles.inputGroup}>
+                         <Feather name="user" size={20} color={colors.placeholder} style={styles.inputIcon} />
+                         <TextInput
+                              style={styles.input}
+                              placeholder="Full Name"
+                              placeholderTextColor={colors.placeholder}
+                              value={name}
+                              onChangeText={setName}
+                              autoCapitalize="words"
+                              textContentType="name"
+                              selectionColor={colors.primaryAccent} // Blue cursor
+                              keyboardAppearance="dark" // Hint for dark keyboard on iOS
+                         />
+                     </View>
+                )}
+                {commonInputs}
+
+                 {activeTab === 'login' && (
+                     <TouchableOpacity style={styles.forgotPasswordLink} onPress={handleForgotPassword}>
+                         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                     </TouchableOpacity>
+                 )}
+
+                 <TouchableOpacity
+                     style={styles.submitButton}
+                     onPress={activeTab === 'login' ? handleLoginSubmit : handleSignUpSubmit}
+                     disabled={isLoading}
+                 >
+                     <Text style={styles.submitButtonText}>
+                         {activeTab === 'login' ? 'Sign In' : 'Create Account'}
+                     </Text>
+                 </TouchableOpacity>
+            </Animated.View>
+        );
     };
 
+    // --- Main Component Return ---
+    // Use a standard View with the new background color
     return (
-        <LinearGradient
-            colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
-            style={styles.gradientContainer}
-        >
-            {/* --- MODIFICATION START --- */}
+        <View style={styles.backgroundContainer}>
             <KeyboardAvoidingView
                 style={styles.keyboardAvoidingContainer}
-                // Use "padding" for iOS, let Android handle it natively (often requires windowSoftInputMode="adjustResize" in AndroidManifest.xml)
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
-                // Keep the offset, adjust if needed based on headers/footers outside this screen
-                keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
             >
                 <ScrollView
-                    // Changed contentContainerStyle: removed justifyContent: 'center'
                     contentContainerStyle={styles.scrollContainer}
                     keyboardShouldPersistTaps="handled"
-                    showsVerticalScrollIndicator={false} // Hide scrollbar unless needed
+                    showsVerticalScrollIndicator={false}
                 >
-            {/* --- MODIFICATION END --- */}
-                    {/* Optional: Add Logo/Title here */}
-                    {/* <Image source={require('./path/to/your/logo.png')} style={styles.logo} /> */}
-                    {/* <Text style={styles.title}>Welcome</Text> */}
+                    {/* --- Top Visual Area --- */}
+                    <View style={styles.topVisualArea}>
+                        {/* Simple Text Title - could be replaced with a Logo */}
+                        <Text style={styles.appName}>App Title</Text>
+                    </View>
 
-                    <View style={styles.authContainer}>
+                    {/* --- Content Area --- */}
+                    <View style={styles.contentArea}>
                         {/* Tab Switcher */}
-                        <View style={styles.tabOuterContainer}>
-                            <View style={styles.tabInnerContainer}>
-                                <Animated.View
-                                    style={[
-                                        styles.tabIndicator,
-                                        { transform: [{ translateX: tabTranslateX }] },
-                                    ]}
-                                />
-                                <TouchableOpacity
-                                    style={styles.tab}
-                                    onPress={() => switchTab("login")}
-                                >
-                                    <Text style={[styles.tabText, activeTab === 'login' && styles.activeTabText]}>Login</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.tab}
-                                    onPress={() => switchTab("signup")}
-                                >
-                                    <Text style={[styles.tabText, activeTab === 'signup' && styles.activeTabText]}>Sign Up</Text>
-                                </TouchableOpacity>
-                            </View>
+                        <View style={styles.tabSwitcher}>
+                             <TouchableOpacity
+                                 ref={loginTabRef}
+                                 style={styles.tabButton}
+                                 onPress={() => switchTab("login")}
+                                 onLayout={(e) => measureTabLayout('login', e)}
+                             >
+                                 <Text style={[styles.tabText, activeTab === 'login' ? styles.tabTextActive : styles.tabTextInactive]}>
+                                     Sign In
+                                 </Text>
+                             </TouchableOpacity>
+                             <TouchableOpacity
+                                 ref={signupTabRef}
+                                 style={styles.tabButton}
+                                 onPress={() => switchTab("signup")}
+                                 onLayout={(e) => measureTabLayout('signup', e)}
+                              >
+                                 <Text style={[styles.tabText, activeTab === 'signup' ? styles.tabTextActive : styles.tabTextInactive]}>
+                                     Create Account
+                                 </Text>
+                             </TouchableOpacity>
+                             {/* Animated Underline - Positioned absolutely relative to tabSwitcher */}
+                             <Animated.View style={[
+                                  styles.tabIndicator,
+                                  {
+                                      left: tabIndicatorX,
+                                      width: tabIndicatorWidth,
+                                  }
+                             ]} />
                         </View>
 
-                        {/* Form Content */}
-                        <Animated.View style={[styles.formContent, { opacity: formOpacity }]}>
-                           {renderForm()}
-                        </Animated.View>
-
-                         {/* Loading Overlay */}
-                        {isLoading && (
-                            <View style={styles.loadingOverlay}>
-                                <ActivityIndicator size="large" color={colors.primary} />
-                            </View>
-                        )}
+                        {/* Render the dynamic form */}
+                        {renderForm()}
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
-        </LinearGradient>
+
+             {/* --- Loading Overlay --- */}
+             {isLoading && (
+                 <View style={styles.loadingOverlay}>
+                     {/* Use white indicator on dark overlay */}
+                     <ActivityIndicator size="large" color={colors.white} />
+                 </View>
+             )}
+        </View> // Close background Container View
     );
 };
 
+
 // --- Styles ---
 const styles = StyleSheet.create({
-    gradientContainer: {
+    // Changed from gradientContainer
+    backgroundContainer: {
         flex: 1,
+        backgroundColor: colors.background, // Black background
     },
     keyboardAvoidingContainer: {
-        flex: 1, // Make KAV fill the gradient container
+        flex: 1,
     },
     scrollContainer: {
-        flexGrow: 1, // Allow content to grow and enable scrolling
-        // Removed justifyContent: "center" to prevent jumps
-        alignItems: "center", // Keep content centered horizontally
-        paddingVertical: 40, // Keep vertical padding for spacing top/bottom
-        paddingHorizontal: 10, // Add horizontal padding for smaller screens if needed
+        flexGrow: 1,
+        alignItems: 'center',
+        paddingBottom: 40,
     },
-    // Optional Logo/Title styles
-    // logo: { ... },
-    // title: { ... },
-    authContainer: {
-        backgroundColor: colors.white,
-        width: "90%",
-        maxWidth: 400,
-        borderRadius: 20,
-        padding: 20,
-        paddingTop: 0, // Tabs manage their own top spacing
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-        elevation: 10,
-        overflow: 'hidden',
-        position: 'relative', // For loading overlay
-        // Add some margin if removing justifyContent makes it stick to the top/bottom edge
-        marginVertical: 20, // Ensures some space even without justifyContent center
+    // --- Top Area ---
+    topVisualArea: {
+        height: height * 0.25, // Reduced height slightly
+        width: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingTop: 20,
     },
-    tabOuterContainer: {
-        marginBottom: 25,
-        marginTop: 20,
-        paddingHorizontal: 0,
+    appName: {
+        fontSize: 32, // Slightly smaller
+        fontWeight: '600', // Less bold
+        color: colors.textPrimary, // White text
+        letterSpacing: 0.5,
     },
-    tabInnerContainer: {
-        flexDirection: "row",
-        backgroundColor: colors.secondary,
-        borderRadius: 30,
-        height: 50,
-        position: 'relative',
-        overflow: 'hidden',
+    // --- Content Area ---
+    contentArea: {
+        width: '90%',
+        maxWidth: 450,
+        paddingTop: 10, // Reduced top padding
+        alignItems: 'center',
     },
-    tab: {
+    // --- Tab Styles ---
+    tabSwitcher: {
+        flexDirection: 'row',
+        width: '100%',
+        marginBottom: 0, // Removed bottom margin, indicator handles spacing
+        position: 'relative', // Context for the absolute indicator
+        height: 55, // Fixed height to help position indicator - includes padding + approx text height + buffer
+    },
+    tabButton: {
+        paddingVertical: 15,
         flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
+        alignItems: 'center',
+        justifyContent: 'center', // Center text vertically too
     },
     tabText: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: colors.tabInactive,
+        fontSize: 17, // Slightly smaller tab text
+        fontWeight: '500', // Medium weight
+        textAlign: 'center',
     },
-    activeTabText: {
-        color: colors.tabActive,
+    tabTextActive: {
+        color: colors.tabActive, // White
     },
+    tabTextInactive: {
+        color: colors.tabInactive, // Dim White
+    },
+    // FIX: Adjusted tabIndicator positioning
     tabIndicator: {
-        position: "absolute",
-        height: '100%',
-        width: '50%',
-        backgroundColor: colors.white,
-        borderRadius: 30,
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 5,
-        zIndex: -1, // Render behind text
+        height: 3,
+        backgroundColor: colors.tabIndicator, // Blue indicator
+        borderRadius: 1.5,
+        position: 'absolute', // Position relative to tabSwitcher
+        // Removed 'bottom', using 'top' instead
+        top: 45, // Position below the text. Adjust visually if needed (e.g., 48, 50)
+        // 'left' and 'width' are animated
     },
-    formContent: {
-        width: "100%",
-        alignItems: "center",
+    // --- Form Styles ---
+    formContainer: {
+        width: '100%',
+        marginTop: 25, // Space below tabs/indicator
+        alignItems: 'center',
     },
-    inputContainer: {
+    inputGroup: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.secondary,
-        borderRadius: 12,
-        marginBottom: 15,
-        width: "100%",
-        paddingHorizontal: 15,
+        width: '100%',
+        borderBottomWidth: 1, // Thinner border
+        borderBottomColor: colors.inputBorder, // Use subtle white border color
+        marginBottom: 20, // Slightly less margin
+        paddingBottom: 6,
+        // Optional: add subtle background to input field itself
+        // backgroundColor: colors.inputBackground,
+        // borderRadius: 5, // Add if using background color
+        // paddingHorizontal: 10, // Add if using background color
     },
     inputIcon: {
         marginRight: 10,
     },
     input: {
         flex: 1,
-        height: 55,
         fontSize: 16,
-        color: colors.text,
+        color: colors.textPrimary, // White text
+        height: 40,
     },
-    button: {
-        paddingVertical: 16,
-        width: "100%",
-        borderRadius: 12,
-        alignItems: "center",
-        justifyContent: 'center',
-        marginTop: 10,
-        flexDirection: 'row',
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-        elevation: 3,
+    forgotPasswordLink: {
+        alignSelf: 'flex-end',
+        marginBottom: 20,
+        paddingVertical: 5,
     },
-    primaryButton: {
-        backgroundColor: colors.primary,
-    },
-    buttonText: {
-        color: colors.textLight,
-        fontWeight: "bold",
-        fontSize: 16,
-    },
-    orText: {
-        color: colors.placeholder,
-        marginVertical: 15,
+    forgotPasswordText: {
+        color: colors.link, // Blue link
         fontSize: 14,
         fontWeight: '500',
     },
-    googleButton: {
-        backgroundColor: colors.googleRed,
-        marginTop: 0,
+    submitButton: {
+        backgroundColor: colors.primaryAccent, // Blue button
+        paddingVertical: 15, // Slightly less padding
+        width: '100%',
+        borderRadius: 8, // Less rounded corners
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 10,
+        shadowColor: colors.black, // Use black for shadow base
+        shadowOffset: { width: 0, height: 2 }, // Smaller shadow
+        shadowOpacity: 0.3, // More visible shadow on dark bg maybe?
+        shadowRadius: 4,
+        elevation: 4,
     },
-    googleText: {
-        color: colors.white,
-        fontWeight: "bold",
-        marginLeft: 10,
+    submitButtonText: {
+        color: colors.buttonText, // White text on button
         fontSize: 16,
+        fontWeight: '600', // Semibold
     },
+    // --- Loading Overlay ---
     loadingOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        backgroundColor: colors.loadingBg, // Use dark overlay color
         justifyContent: 'center',
         alignItems: 'center',
-        borderRadius: 20, // Match parent container's border radius
         zIndex: 10,
     },
 });
 
 export default AuthScreen;
+// Current timestamp: Tuesday, April 15, 2025 at 6:57:00 AM SAST (Mahikeng, North West, South Africa)
