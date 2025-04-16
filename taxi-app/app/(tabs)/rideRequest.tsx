@@ -37,6 +37,7 @@ type RootStackParamList = {
   AcceptedPassenger: undefined;
   ViewRoute: undefined;
   Auth: undefined;
+  TaxiFareCalculator: undefined
   // Add other screens if necessary
 };
 
@@ -229,6 +230,7 @@ const RideRequestScreen: React.FC = () => {
         case 'LiveChat':
             navigation.navigate({ name: 'LiveChat', params: undefined, merge: true });
             break;
+        case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;
         case 'TaxiManagement':
             navigation.navigate({ name: 'TaxiManagement', params: undefined, merge: true });
             break;

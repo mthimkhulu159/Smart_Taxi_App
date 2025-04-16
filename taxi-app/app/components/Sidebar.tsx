@@ -119,6 +119,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <NavItem screen="ViewTaxi" label="View Taxis" icon={<MaterialIcons name="local-taxi" size={22} color="#FFFFFF" />} />
                     <NavItem screen="ViewRoute" label="View Routes" icon={<MaterialIcons name="route" size={22} color="#FFFFFF" />} />
                     <NavItem screen="AcceptedRequest" label="My Ride" icon={<FontAwesome name="check-circle" size={22} color="#FFFFFF" />} />
+                    <NavItem screen="TaxiFareCalculator" label="Fare Calculator" icon={<FontAwesome name="calculator" size={22} color="#FFFFFF" />} />
+                    
                     {/* <NavItem screen="LiveChat" label="Live Chat" icon={<Ionicons name="chatbubbles-outline" size={22} color="#FFFFFF" />} /> */}
                     <NavItem screen="Profile" label="Profile" icon={<FontAwesome name="user-circle-o" size={22} color="#FFFFFF" />} />
 

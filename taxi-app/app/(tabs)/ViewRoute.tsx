@@ -52,6 +52,7 @@ type RootStackParamList = {
   AcceptedRequest: undefined;
   AcceptedPassenger: undefined;
   Auth: undefined;
+  TaxiFareCalculator: undefined;
   // Add other screens if necessary
 };
 
@@ -252,6 +253,8 @@ const ViewRoute: React.FC = () => {
         case 'ViewRoute': break; // Already here
         case 'ViewRequests': navigation.navigate({ name: 'ViewRequests', params: undefined, merge: true }); break;
         case 'LiveChat': navigation.navigate({ name: 'LiveChat', params: undefined, merge: true }); break;
+        case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;
+       
         case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: undefined, merge: true }); break;
         case 'Profile': navigation.navigate({ name: 'Profile', params: undefined, merge: true }); break;
         case 'AcceptedRequest': navigation.navigate({ name: 'AcceptedRequest', params: undefined, merge: true }); break;

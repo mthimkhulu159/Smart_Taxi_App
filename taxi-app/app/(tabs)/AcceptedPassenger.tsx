@@ -49,6 +49,7 @@ type RootStackParamList = {
   AcceptedRequest: undefined;
   AcceptedPassenger: undefined; // Current screen
   Auth: undefined;
+  TaxiFareCalculator: undefined
   // Add other screens if necessary
 };
 
@@ -381,6 +382,7 @@ const AcceptedPassengersScreen = () => {
              navigation.navigate('LiveChat', { chatSessionId: params.chatSessionId });
            } else { console.warn("Missing chatSessionId for LiveChat navigation."); }
            break;
+       case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;  
        case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: params, merge: true }); break;
        case 'Profile': navigation.navigate({ name: 'Profile', params: params, merge: true }); break;
        case 'AcceptedRequest': navigation.navigate({ name: 'AcceptedRequest', params: params, merge: true }); break;

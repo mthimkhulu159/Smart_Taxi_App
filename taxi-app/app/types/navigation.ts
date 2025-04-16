@@ -11,4 +11,5 @@ export type RootStackParamList = {
     AcceptedRequest: undefined;
     AcceptedPassenger: undefined;
     Auth: undefined;
+    TaxiFareCalculator: undefined
 };

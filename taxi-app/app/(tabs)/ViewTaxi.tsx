@@ -48,6 +48,7 @@ type RootStackParamList = {
   AcceptedRequest: undefined;
   AcceptedPassenger: undefined;
   Auth: undefined;
+  TaxiFareCalculator: undefined;
 };
 
 type ViewTaxiNavigationProp = StackNavigationProp<RootStackParamList, 'ViewTaxi'>;
@@ -206,6 +207,8 @@ const ViewTaxi: React.FC = () => {
                 // Add params object if/when needed, e.g., { chatId: 'someId' }
                 navigation.navigate({ name: 'LiveChat', params: undefined, merge: true });
                 break;
+           case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;
+
             case 'TaxiManagement':
                 navigation.navigate({ name: 'TaxiManagement', params: undefined, merge: true });
                 break;

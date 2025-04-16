@@ -48,6 +48,7 @@ type RootStackParamList = {
     AcceptedRequest: undefined; // Current screen
     AcceptedPassenger: undefined;
     Auth: undefined;
+    TaxiFareCalculator: undefined
 };
 
 type AcceptedRequestScreenNavigationProp = StackNavigationProp<RootStackParamList, 'AcceptedRequest'>;
@@ -302,10 +303,17 @@ const AcceptedRequestsScreen = () => {
         switch (screen) {
            case 'Home': navigation.navigate({ name: 'Home', params: params, merge: true }); break;
            case 'requestRide': navigation.navigate({ name: 'requestRide', params: params, merge: true }); break;
-           // ... include all other cases from your original code ...
            case 'LiveChat': if (params?.chatSessionId) { navigation.navigate('LiveChat', { chatSessionId: params.chatSessionId }); } else { console.warn("Missing chatSessionId for LiveChat navigation."); } break;
            case 'AcceptedRequest': break; // Already here, do nothing
-           // ... include all other cases ...
+           case 'ViewTaxi': navigation.navigate({ name: 'ViewTaxi', params: undefined, merge: true }); break;
+           case 'ViewRoute': navigation.navigate({ name: 'ViewRoute', params: undefined, merge: true }); break;
+           case 'ViewRequests': navigation.navigate({ name: 'ViewRequests', params: undefined, merge: true }); break;
+           case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;
+           case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: undefined, merge: true }); break;
+           case 'Profile': navigation.navigate({ name: 'Profile', params: undefined, merge: true }); break;
+           case 'AcceptedRequest': navigation.navigate({ name: 'AcceptedRequest', params: undefined, merge: true }); break;
+           case 'AcceptedPassenger': navigation.navigate({ name: 'AcceptedPassenger', params: undefined, merge: true }); break;
+           case 'Auth': navigation.navigate({ name: 'Auth', params: undefined, merge: true }); break;
            default: console.warn(`Attempted to navigate to unhandled screen: ${screen}`); break;
         }
     };

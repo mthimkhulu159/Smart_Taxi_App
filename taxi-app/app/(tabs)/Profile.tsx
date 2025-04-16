@@ -42,6 +42,7 @@ type RootStackParamList = {
   AcceptedPassenger: undefined;
   ViewRoute: undefined;
   Auth: undefined;
+  TaxiFareCalculator: undefined
 };
 
 type ProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Profile'>;

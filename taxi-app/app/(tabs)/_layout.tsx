@@ -14,6 +14,7 @@ import AcceptedRequestsScreen from './AcceptedRequests';
 import ViewRequestScreen from './ViewRequests';
 import ViewRoute from './ViewRoute';
 import ForgotPassword from './ForgotPassword';
+import TaxiFareCalculator from './TaxiFareCalculator';
 const Stack = createStackNavigator();
 
 export default function TabLayout() {
@@ -69,6 +70,11 @@ export default function TabLayout() {
            options={{headerShown: false}}
           />
           <Stack.Screen
+          name='TaxiFareCalculator'
+          component={TaxiFareCalculator}
+          options={{headerShown: false}}
+          />
+                  <Stack.Screen
           name='TaxiManagement'
           component={TaxiManagementScreen}
           options={{headerShown: false}}
