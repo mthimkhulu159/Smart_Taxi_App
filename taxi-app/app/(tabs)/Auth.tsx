@@ -251,7 +251,7 @@ const AuthScreen = () => {
                     {/* --- Top Visual Area --- */}
                     <View style={styles.topVisualArea}>
                         {/* Simple Text Title - could be replaced with a Logo */}
-                        <Text style={styles.appName}>App Title</Text>
+                        <Text style={styles.appName}>Qmarshal</Text>
                     </View>
 
                     {/* --- Content Area --- */}

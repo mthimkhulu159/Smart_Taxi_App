@@ -257,19 +257,63 @@ const ProfileScreen: React.FC = () => {
   };
   // ********** END OF handleSave UPDATE **********
 
-
   const handleUpgradeRole = async () => {
-    if (user?.role.includes('driver')) { Alert.alert('Already a Driver', 'Your account already has driver privileges.'); return; }
+    // Prevent action if already a driver
+    if (user?.role?.includes('driver')) {
+      Alert.alert('Already a Driver', 'Your account already has driver privileges.');
+      return;
+    }
+    // Prevent action if user data is missing
+    if (!user) {
+      Alert.alert('Error', 'User data missing. Cannot upgrade role.');
+      return;
+    }
+
     setIsUpgrading(true);
-    if (user) {
-      try {
-        const response = await fetchData(apiUrl, 'api/users/upgrade-role', { method: 'PUT', });
-        if (response?.user && response.user.role.includes('driver')) {
-          setUser(response.user); Alert.alert('Success', 'Your account has been upgraded to Driver!');
-        } else { throw new Error(response?.message || 'Role upgrade failed or confirmation not received.'); }
-      } catch (error: any) { console.error('Error upgrading role:', error.message); Alert.alert('Error', `Failed to upgrade role. ${error.message || 'Please contact support.'}`); }
-    } else { Alert.alert('Error', 'User data missing. Cannot upgrade role.'); }
-    setIsUpgrading(false);
+
+    try {
+      console.log("Attempting role upgrade..."); // Added log
+      const response = await fetchData(apiUrl, 'api/users/upgrade-role', {
+        method: 'PUT',
+        // No body needed if the backend identifies the user via token
+      });
+
+      console.log("Role upgrade response received:", response); // Added log
+
+      // --- REVISED SUCCESS HANDLING ---
+      // Scenario 1: Request submitted for approval (API returns a success message)
+      // Check for a specific success flag OR just a message if the API confirms success this way
+      if (response?.success === true && response?.message) {
+          // Show the backend's confirmation message directly
+          Alert.alert('Request Submitted', response.message);
+          // Optionally: You might want to disable the button temporarily or show a "Pending Approval" status somewhere
+      }
+      // Scenario 2: Role granted immediately (API returns updated user with 'driver' role)
+      else if (response?.user && response.user.role?.includes('driver')) {
+          setUser(response.user); // Update user state
+          Alert.alert('Success', 'Your account has been upgraded to Driver!');
+      }
+      // Scenario 3: API call succeeded but response format is unexpected or indicates failure without throwing an error earlier
+      else {
+           // Use a specific message from the backend if available, otherwise a generic one
+          const errorMessage = response?.message || response?.error || 'Role upgrade failed or confirmation not received.';
+          console.warn("Role upgrade failed or response format unexpected:", response); // Log for debugging
+          // Throw an error so it's caught by the catch block below as a failure
+          throw new Error(errorMessage);
+      }
+      // --- END REVISED SUCCESS HANDLING ---
+
+    } catch (error: any) {
+      // This now catches actual fetch errors OR the explicitly thrown error from Scenario 3
+      console.error('Error upgrading role:', error); // Log the full error
+      // Display a user-friendly error message, using the error's message if available
+      Alert.alert(
+        'Upgrade Error', // Use a more specific title for actual errors
+        `Failed to submit upgrade request. ${error.message || 'Please try again or contact support.'}`
+      );
+    } finally {
+      setIsUpgrading(false); // Ensure loading state is always reset
+    }
   };
 
   // *** UPDATED LOGOUT HANDLER with LOGGING ***
