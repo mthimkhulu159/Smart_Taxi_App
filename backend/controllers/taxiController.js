@@ -1,336 +1,403 @@
+// src/controllers/taxiController.js (or your path)
+
 const Taxi = require("../models/Taxi");
 const Route = require("../models/Route");
 const User = require("../models/User");
-const { getIo } = require("../config/socket"); // Import Socket.IO instance
+const { getIo } = require("../config/socket"); // Import shared Socket.IO instance
 
-// Add a new taxi (Only for drivers)
-exports.addTaxi = async (req, res) => {
-  try {
-    const userId = req.user.id;
+// --- Helper function to format Taxi Data for Emission ---
+// (Consistent formatting for API responses and socket events)
+const formatTaxiDataForEmit = (taxi) => {
+    if (!taxi) return null;
 
-    // Check if user is a driver
-    const user = await User.findById(userId);
-    if (!user || !user.role.includes("driver")) {
-      return res.status(403).json({ message: "Only drivers can add a taxi." });
+    // Determine next stop safely
+    let nextStopName = "End of the route";
+    // Ensure routeId and stops are populated or handled gracefully
+    if (taxi.routeId && typeof taxi.routeId === 'object' && Array.isArray(taxi.routeId.stops)) {
+        const currentStopIndex = taxi.routeId.stops.findIndex(stop => stop.name === taxi.currentStop);
+        if (currentStopIndex !== -1 && currentStopIndex < taxi.routeId.stops.length - 1) {
+            nextStopName = taxi.routeId.stops[currentStopIndex + 1].name;
+        }
+    } else {
+         // Handle cases where routeId might not be fully populated in some contexts
+         // console.warn(`Route details missing/not populated for taxi ${taxi._id} in formatTaxiDataForEmit`);
     }
 
-    const { numberPlate, routeName, capacity, currentStop } = req.body;
+    // Ensure driverId is populated or handle gracefully
+    const driverName = (taxi.driverId && typeof taxi.driverId === 'object')
+        ? (taxi.driverId.name || taxi.driverId.username)
+        : 'N/A';
+    const driverId = (taxi.driverId && typeof taxi.driverId === 'object')
+        ? taxi.driverId._id
+        : (taxi.driverId || null); // Use driverId directly if not populated
 
-    // Validate the input fields
-    if (!numberPlate || !routeName || !capacity || !currentStop) {
-      return res.status(400).json({ message: "All fields are required." });
-    }
-
-    // Validate capacity as a number
-    if (isNaN(capacity) || capacity <= 0) {
-      return res.status(400).json({ message: "Capacity must be a positive number." });
-    }
-
-    // Ensure numberPlate is unique
-    const existingTaxi = await Taxi.findOne({ numberPlate });
-    if (existingTaxi) {
-      return res.status(400).json({ message: "Taxi with this number plate already exists." });
-    }
-
-    // Search for the route using routeName
-    const route = await Route.findOne({ routeName });
-    if (!route) {
-      return res.status(404).json({ message: "Route not found. Please enter a valid route name." });
-    }
-
-    // Create a new taxi document
-    const newTaxi = new Taxi({
-      numberPlate,
-      routeId: route._id, // Use the routeId from the found route
-      driverId: userId, // Associate the taxi with the current driver
-      capacity,
-      currentStop,
-      status: "available", // Default status is available
-    });
-
-    // Save the taxi to the database
-    await newTaxi.save();
-    res.status(201).json({ message: "Taxi added successfully.", taxi: newTaxi });
-  } catch (error) {
-    console.error("Error saving taxi:", error); // Log error for debugging
-    res.status(500).json({ message: "Error saving taxi to database", error: error.message });
-  }
-};
+     // Ensure routeId is populated or handle gracefully
+     const routeName = (taxi.routeId && typeof taxi.routeId === 'object')
+        ? taxi.routeId.routeName
+        : 'N/A';
+     const routeId = (taxi.routeId && typeof taxi.routeId === 'object')
+        ? taxi.routeId._id
+        : (taxi.routeId || null); // Use routeId directly if not populated
+     const stops = (taxi.routeId && typeof taxi.routeId === 'object' && Array.isArray(taxi.routeId.stops))
+        ? taxi.routeId.stops
+        : []; // Default to empty array if not populated
 
 
-exports.searchTaxis = async (req, res, next) => {
-  try {
-    const { startLocation, endLocation } = req.query;
-    if (!startLocation || !endLocation) {
-      return res.status(400).json({ message: "Start and end locations are required." });
-    }
-
-    const routes = await Route.find({ "stops.name": { $all: [startLocation, endLocation] } });
-    if (routes.length === 0) {
-      return res.status(404).json({ message: "No routes found for the given locations." });
-    }
-
-    const routeIds = routes.map((route) => route._id);
-    const taxis = await Taxi.find({
-      routeId: { $in: routeIds },
-      status: { $in: ["waiting", "available", "almost full"] }, // Corrected statuses
-    }).populate("routeId driverId", "routeName stops name");
-
-    if (taxis.length === 0) {
-      return res.status(404).json({ message: "No available taxis for the selected route." });
-    }
-
-    const filteredTaxis = taxis.filter((taxi) => {
-      const route = routes.find((r) => r._id.equals(taxi.routeId._id));
-      if (!route) return false;
-
-      const startStop = route.stops.find((stop) => stop.name === startLocation);
-      const endStop = route.stops.find((stop) => stop.name === endLocation);
-
-      if (!startStop || !endStop) return false;
-
-      // Check if the taxi is moving in the correct direction
-      const taxiCurrentStopIndex = route.stops.findIndex(
-        (stop) => stop.name === taxi.currentStop
-      );
-      const startStopIndex = route.stops.findIndex(
-        (stop) => stop.name === startLocation
-      );
-      const endStopIndex = route.stops.findIndex(
-        (stop) => stop.name === endLocation
-      );
-
-      if (taxiCurrentStopIndex === -1 || startStopIndex === -1 || endStopIndex === -1) {
-        return false; // One of the stops or taxi's current stop not found
-      }
-
-      // Ensure startStop comes before endStop in the route
-      if (startStopIndex > endStopIndex) {
-        return false; // Backward search, taxi is going the wrong way
-      }
-
-      // Ensure taxi is at or before the startLocation
-      return taxiCurrentStopIndex <= startStopIndex;
-    });
-
-    if (filteredTaxis.length === 0) {
-      return res.status(404).json({ message: "No taxis available at your location or that have yet to pass it in the correct direction." });
-    }
-
-    res.status(200).json({ taxis: filteredTaxis });
-
-    // Assuming 'io' is your socket.io instance
-    // io.emit("taxiUpdate", filteredTaxis);
-  } catch (error) {
-    next(error);
-  }
-};
-
-
-// Get all taxis assigned to a specific driver
-exports.getDriverTaxis = async (req, res) => {
-  try {
-    const driverId = req.user.id;
-    const taxis = await Taxi.find({ driverId }).populate("routeId", "routeName");
-
-    if (taxis.length === 0) {
-      return res.status(404).json({ message: "No taxis found for this driver." });
-    }
-
-    res.status(200).json({ taxis });
-  } catch (error) {
-    console.error("Error fetching driver's taxis:", error);
-    res.status(500).json({ message: "Internal server error." });
-  }
-};
-
-exports.updateStatus = async (req, res, next) => {
-  try {
-    const { taxiId } = req.params;
-    const { status } = req.body;
-
-    const validStatuses = ["waiting", "available", "roaming", "almost full", "full", "on trip", "not available"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Invalid status. Please provide a valid status." });
-    }
-
-    const taxi = await Taxi.findById(taxiId).populate('routeId', 'routeName stops').populate('driverId', 'username');
-    if (!taxi) {
-      return res.status(404).json({ message: "Taxi not found." });
-    }
-
-    taxi.status = status;
-    await taxi.save();
-
-    res.status(200).json({ message: "Taxi status updated successfully.", taxi });
-
-    io.emit("taxiStatusUpdate", taxi);
-    io.emit("taxiUpdateForPassenger", formatTaxiInfo(taxi));
-  } catch (error) {
-    console.error("Error updating taxi status:", error);
-    next(error);
-  }
-};
-
-exports.updateCurrentStop = async (req, res, next) => {
-  try {
-    const { taxiId } = req.params;
-
-    const taxi = await Taxi.findById(taxiId).populate('routeId', 'routeName stops').populate('driverId', 'username');
-    if (!taxi) {
-      return res.status(404).json({ message: "Taxi not found." });
-    }
-
-    const route = await Route.findById(taxi.routeId);
-    if (!route) {
-      return res.status(404).json({ message: "Route not found." });
-    }
-
-    const currentStop = route.stops.find(stop => stop.name === taxi.currentStop);
-    if (!currentStop) {
-      return res.status(404).json({ message: "Current stop not found in route." });
-    }
-
-    const nextStop = route.stops.find(stop => stop.order === currentStop.order + 1);
-    if (!nextStop) {
-      return res.status(404).json({ message: "No next stop available." });
-    }
-
-    taxi.currentStop = nextStop.name;
-    await taxi.save();
-
-    res.status(200).json({ message: "Taxi's current stop updated successfully.", taxi });
-
-    io.emit("taxiCurrentStopUpdate", taxi);
-    io.emit("taxiUpdateForPassenger", formatTaxiInfo(taxi));
-  } catch (error) {
-    console.error("Error updating taxi's current stop:", error);
-    next(error);
-  }
-};
-
-exports.monitorTaxi = async (req, res, next) => {
-  try {
-    const { taxiId } = req.params;
-
-    const taxi = await Taxi.findById(taxiId).populate('routeId', 'routeName stops').populate('driverId', 'username');
-
-    if (!taxi) {
-      return res.status(404).json({ message: "Taxi not found." });
-    }
-
-    const taxiInfo = {
-      numberPlate: taxi.numberPlate,
-      status: taxi.status,
-      currentStop: taxi.currentStop,
-      currentLoad: taxi.currentLoad,
-      routeName: taxi.routeId.routeName,
-      nextStop: getNextStop(taxi),
-      maxLoad: taxi.capacity,
+    return {
+        _id: taxi._id,
+        numberPlate: taxi.numberPlate,
+        status: taxi.status,
+        currentStop: taxi.currentStop,
+        currentLoad: taxi.currentLoad,
+        capacity: taxi.capacity, // Use capacity from schema
+        routeName: routeName,
+        driverName: driverName,
+        driverId: driverId,
+        routeId: routeId,
+        stops: stops, // Include stops if populated, empty array otherwise
+        nextStop: nextStopName,
+        updatedAt: taxi.updatedAt
     };
-
-    res.status(200).json({ message: "Taxi information fetched successfully.", taxiInfo });
-
-    io.emit("taxiUpdateForPassenger", taxiInfo);
-  } catch (error) {
-    console.error("Error monitoring taxi update:", error);
-    next(error);
-  }
 };
 
-const getNextStop = (taxi) => {
-  const currentStopIndex = taxi.routeId.stops.findIndex(stop => stop.name === taxi.currentStop);
 
-  if (currentStopIndex === -1 || currentStopIndex === taxi.routeId.stops.length - 1) {
-    return "End of the route";
-  }
-
-  return taxi.routeId.stops[currentStopIndex + 1].name;
+// --- Add Taxi ---
+// (No socket emission needed here usually)
+exports.addTaxi = async (req, res, next) => {
+    try {
+        const userId = req.user.id;
+        const user = await User.findById(userId);
+        if (!user || !user.role.includes("driver")) {
+            return res.status(403).json({ message: "Only drivers can add a taxi." });
+        }
+        const { numberPlate, routeName, capacity, currentStop } = req.body;
+        if (!numberPlate || !routeName || !capacity || !currentStop) {
+            return res.status(400).json({ message: "All fields are required." });
+        }
+        if (isNaN(capacity) || capacity <= 0) {
+            return res.status(400).json({ message: "Capacity must be a positive number." });
+        }
+        const existingTaxi = await Taxi.findOne({ numberPlate });
+        if (existingTaxi) {
+            return res.status(400).json({ message: "Taxi with this number plate already exists." });
+        }
+        const route = await Route.findOne({ routeName });
+        if (!route) {
+            return res.status(404).json({ message: "Route not found." });
+        }
+        const stopExists = route.stops.some(stop => stop.name === currentStop);
+        if (!stopExists) {
+            return res.status(400).json({ message: `Stop '${currentStop}' not found on route '${routeName}'.` });
+        }
+        const newTaxi = new Taxi({
+            numberPlate, routeId: route._id, driverId: userId,
+            capacity, currentStop, status: "available", currentLoad: 0
+        });
+        await newTaxi.save();
+        // Populate for response consistency
+        await newTaxi.populate('routeId', 'routeName stops');
+        await newTaxi.populate('driverId', 'name username');
+        res.status(201).json({ message: "Taxi added successfully.", taxi: formatTaxiDataForEmit(newTaxi) });
+    } catch (error) {
+        console.error("Error adding taxi:", error);
+        // Use next(error) for centralized error handling if configured
+        // next(error);
+        res.status(500).json({ message: "Error adding taxi", error: error.message });
+    }
 };
 
+// --- Search Taxis ---
+// (No socket emissions needed here)
+exports.searchTaxis = async (req, res, next) => {
+    try {
+        const { startLocation, endLocation } = req.query;
+        if (!startLocation || !endLocation) { return res.status(400).json({ message: "Start/end locations required." }); }
+
+        const routes = await Route.find({ stops: { $elemMatch: { name: startLocation }, $elemMatch: { name: endLocation } } });
+        if (!routes || routes.length === 0) { return res.status(404).json({ message: "No routes found." }); }
+
+        const validRouteIds = [];
+        const routeStopOrder = {};
+        for (const route of routes) {
+            const startIdx = route.stops.findIndex(s => s.name === startLocation);
+            const endIdx = route.stops.findIndex(s => s.name === endLocation);
+            if (startIdx !== -1 && endIdx !== -1 && startIdx < endIdx) {
+                validRouteIds.push(route._id);
+                routeStopOrder[route._id.toString()] = { startIdx, endIdx, stops: route.stops };
+            }
+        }
+        if (validRouteIds.length === 0) { return res.status(404).json({ message: "No routes found in correct direction." }); }
+
+        const availableStatuses = ["waiting", "available", "almost full", "roaming"];
+        const taxis = await Taxi.find({
+            routeId: { $in: validRouteIds },
+            status: { $in: availableStatuses },
+        }).populate("routeId", "routeName stops").populate("driverId", "name username");
+
+        if (!taxis || taxis.length === 0) { return res.status(404).json({ message: "No available taxis found." }); }
+
+        const filteredTaxis = taxis.filter((taxi) => {
+            // Ensure taxi.routeId is populated correctly before accessing its properties
+             if (!taxi.routeId || typeof taxi.routeId !== 'object') {
+                console.warn(`Taxi ${taxi._id} missing populated routeId.`);
+                return false;
+            }
+            const routeInfo = routeStopOrder[taxi.routeId._id.toString()];
+            if (!routeInfo) return false;
+            const taxiCurrentStopIndex = routeInfo.stops.findIndex(stop => stop.name === taxi.currentStop);
+            if (taxiCurrentStopIndex === -1) { console.warn(`Taxi ${taxi._id} stop '${taxi.currentStop}' invalid.`); return false; }
+            return taxiCurrentStopIndex <= routeInfo.startIdx; // Taxi is at or before passenger start
+        });
+
+        if (filteredTaxis.length === 0) { return res.status(404).json({ message: "No suitable taxis found (already passed?)." }); }
+
+        const responseTaxis = filteredTaxis.map(formatTaxiDataForEmit);
+        res.status(200).json({ taxis: responseTaxis });
+
+    } catch (error) {
+        console.error("Error searching taxis:", error);
+        next(error); // Pass error to Express error handler
+    }
+};
+
+// --- Get Driver Taxis ---
+// (No socket emissions needed here)
+exports.getDriverTaxis = async (req, res, next) => {
+    try {
+        const driverId = req.user.id;
+        const taxis = await Taxi.find({ driverId })
+                                .populate("routeId", "routeName stops")
+                                .populate("driverId", "name username");
+        if (!taxis || taxis.length === 0) { return res.status(404).json({ message: "No taxis found." }); }
+        const responseTaxis = taxis.map(formatTaxiDataForEmit);
+        res.status(200).json({ taxis: responseTaxis });
+    } catch (error) {
+        console.error("Error fetching driver taxis:", error);
+        next(error);
+    }
+};
+
+// --- Update Taxi Status ---
+// (Handles DB update and broadcasts change)
+exports.updateStatus = async (req, res, next) => {
+    try {
+        const { taxiId } = req.params;
+        const { status } = req.body;
+        const driverId = req.user.id;
+        const validStatuses = ["waiting", "available", "roaming", "almost full", "full", "on trip", "not available"];
+        if (!validStatuses.includes(status)) { return res.status(400).json({ message: "Invalid status." }); }
+
+        const taxi = await Taxi.findOne({ _id: taxiId, driverId: driverId });
+        if (!taxi) {
+             const taxiExists = await Taxi.findById(taxiId);
+             return taxiExists ? res.status(403).json({ message: "Unauthorized." }) : res.status(404).json({ message: "Taxi not found." });
+        }
+
+        taxi.status = status;
+        await taxi.save();
+        await taxi.populate('routeId', 'routeName stops'); // Re-populate after save
+        await taxi.populate('driverId', 'name username');
+
+        const updatedTaxiData = formatTaxiDataForEmit(taxi);
+        res.status(200).json({ message: "Status updated.", taxi: updatedTaxiData });
+
+        // Broadcast update to subscribed clients
+        try {
+            const io = getIo();
+            const roomName = `taxi_${taxi._id}`;
+            io.to(roomName).emit("taxiUpdate", updatedTaxiData);
+            console.log(`[API] Emitted taxiUpdate to room ${roomName} (status change)`);
+        } catch (socketError) { console.error("Socket emission error:", socketError); }
+
+    } catch (error) {
+        console.error("Error updating taxi status:", error);
+        next(error);
+    }
+};
+
+// --- Update Taxi Current Stop (Automatic next stop) ---
+// (Handles DB update and broadcasts change)
+exports.updateCurrentStop = async (req, res, next) => {
+     try {
+        const { taxiId } = req.params;
+        const driverId = req.user.id;
+
+        const taxi = await Taxi.findOne({ _id: taxiId, driverId: driverId })
+                               .populate('routeId', 'routeName stops'); // Populate route needed
+                               // Driver info less critical here, can skip populate('driverId') if not needed immediately
+
+        if (!taxi) {
+             const taxiExists = await Taxi.findById(taxiId);
+             return taxiExists ? res.status(403).json({ message: "Unauthorized." }) : res.status(404).json({ message: "Taxi not found." });
+        }
+        if (!taxi.routeId || !taxi.routeId.stops || taxi.routeId.stops.length === 0) {
+            return res.status(400).json({ message: "Invalid route data." });
+        }
+
+        const stops = taxi.routeId.stops;
+        const currentStopIndex = stops.findIndex(stop => stop.name === taxi.currentStop);
+        if (currentStopIndex === -1) {
+            console.error(`Taxi ${taxiId} stop '${taxi.currentStop}' mismatch.`);
+            return res.status(400).json({ message: "Current stop mismatch." });
+        }
+        if (currentStopIndex >= stops.length - 1) {
+            return res.status(400).json({ message: "Already at last stop." });
+        }
+
+        const nextStop = stops[currentStopIndex + 1];
+        taxi.currentStop = nextStop.name;
+        // Maybe auto-update status? e.g., taxi.status = 'roaming';
+        await taxi.save();
+        await taxi.populate('driverId', 'name username'); // Populate driver for response/emit
+
+        const updatedTaxiData = formatTaxiDataForEmit(taxi);
+        res.status(200).json({ message: "Location updated.", taxi: updatedTaxiData });
+
+        // Broadcast update
+        try {
+            const io = getIo();
+            const roomName = `taxi_${taxi._id}`;
+            io.to(roomName).emit("taxiUpdate", updatedTaxiData);
+            console.log(`[API] Emitted taxiUpdate to room ${roomName} (stop change)`);
+        } catch (socketError) { console.error("Socket emission error:", socketError); }
+
+    } catch (error) {
+        console.error("Error updating next stop:", error);
+        next(error);
+    }
+};
+
+// --- Update Taxi Load ---
+// (Handles DB update and broadcasts change)
 exports.updateLoad = async (req, res, next) => {
-  try {
-    const { taxiId } = req.params;
-    const { currentLoad } = req.body;
+    try {
+        const { taxiId } = req.params;
+        const { currentLoad } = req.body;
+        const driverId = req.user.id;
 
-    if (isNaN(currentLoad) || currentLoad < 0) {
-      return res.status(400).json({ message: "Load must be a non-negative number." });
+        if (currentLoad === undefined || isNaN(currentLoad) || currentLoad < 0) {
+            return res.status(400).json({ message: "Invalid load value." });
+        }
+        const parsedLoad = parseInt(currentLoad, 10);
+
+        const taxi = await Taxi.findOne({ _id: taxiId, driverId: driverId });
+        if (!taxi) {
+             const taxiExists = await Taxi.findById(taxiId);
+             return taxiExists ? res.status(403).json({ message: "Unauthorized." }) : res.status(404).json({ message: "Taxi not found." });
+        }
+        if (parsedLoad > taxi.capacity) {
+            return res.status(400).json({ message: `Load (${parsedLoad}) exceeds capacity (${taxi.capacity}).` });
+        }
+
+        taxi.currentLoad = parsedLoad;
+
+        // Auto-update status based on load
+        const oldStatus = taxi.status;
+        if (taxi.currentLoad >= taxi.capacity) taxi.status = 'full';
+        else if (taxi.currentLoad >= taxi.capacity * 0.8) { if(taxi.status !== 'full') taxi.status = 'almost full'; }
+        else if (taxi.currentLoad > 0) { if (taxi.status === 'available' || taxi.status === 'waiting') taxi.status = 'roaming'; }
+        else { if (taxi.status !== 'not available') taxi.status = 'available'; }
+        const statusChanged = oldStatus !== taxi.status;
+
+        await taxi.save();
+        await taxi.populate('routeId', 'routeName stops');
+        await taxi.populate('driverId', 'name username');
+
+        const updatedTaxiData = formatTaxiDataForEmit(taxi);
+        res.status(200).json({ message: `Load updated${statusChanged ? ' (status also updated)' : ''}.`, taxi: updatedTaxiData });
+
+        // Broadcast update
+        try {
+            const io = getIo();
+            const roomName = `taxi_${taxi._id}`;
+            io.to(roomName).emit("taxiUpdate", updatedTaxiData);
+            console.log(`[API] Emitted taxiUpdate to room ${roomName} (load/status change)`);
+        } catch (socketError) { console.error("Socket emission error:", socketError); }
+
+    } catch (error) {
+        console.error("Error updating taxi load:", error);
+        next(error);
     }
-
-    const taxi = await Taxi.findById(taxiId).populate('routeId', 'routeName stops').populate('driverId', 'username');
-    if (!taxi) {
-      return res.status(404).json({ message: "Taxi not found." });
-    }
-
-    if (currentLoad > taxi.capacity) {
-      return res.status(400).json({ message: "Load cannot exceed the taxi's capacity." });
-    }
-
-    taxi.currentLoad = currentLoad;
-    await taxi.save();
-
-    res.status(200).json({ message: "Taxi load updated successfully.", taxi });
-
-    io.emit("taxiLoadUpdate", taxi);
-    io.emit("taxiUpdateForPassenger", formatTaxiInfo(taxi));
-  } catch (error) {
-    console.error("Error updating taxi load:", error);
-    next(error);
-  }
 };
 
-const formatTaxiInfo = (taxi) => {
-  return {
-    numberPlate: taxi.numberPlaate,
-    status: taxi.status,
-    currentStop: taxi.currentStop,
-    currentLoad: taxi.currentLoad,
-    routeName: taxi.routeId.routeName,
-    nextStop: getNextStop(taxi),
-    driverUsername: taxi.driverId.name,
-  };
-};
-
-exports.getStopsForTaxi = async (req, res, next) => {
-  try {
-    const { taxiId } = req.params;
-    const taxi = await Taxi.findById(taxiId).populate("routeId", "stops");
-    if (!taxi) {
-      return res.status(404).json({ message: "Taxi not found." });
-    }
-    res.status(200).json({ stops: taxi.routeId.stops });
-  } catch (error) {
-    next(error);
-  }
-};
-
+// --- Update Taxi Current Stop (Manual Selection) ---
+// (Handles DB update and broadcasts change)
 exports.updateCurrentStopManual = async (req, res, next) => {
-  try {
-    const { taxiId } = req.params;
-    const { currentStop } = req.body;
+    try {
+        const { taxiId } = req.params;
+        const { currentStop } = req.body;
+        const driverId = req.user.id;
 
-    const taxi = await Taxi.findById(taxiId);
-    if (!taxi) {
-      return res.status(404).json({ message: "Taxi not found." });
+        if (!currentStop) { return res.status(400).json({ message: "Stop name required." }); }
+
+        // Populate route here to validate the stop against it
+        const taxi = await Taxi.findOne({ _id: taxiId, driverId: driverId })
+                               .populate('routeId', 'stops'); // Only need stops from route
+        if (!taxi) {
+             const taxiExists = await Taxi.findById(taxiId);
+             return taxiExists ? res.status(403).json({ message: "Unauthorized." }) : res.status(404).json({ message: "Taxi not found." });
+        }
+        if (!taxi.routeId || !taxi.routeId.stops) { return res.status(400).json({ message: "Invalid route data." }); }
+
+        const validStop = taxi.routeId.stops.find(stop => stop.name === currentStop);
+        if (!validStop) { return res.status(400).json({ message: `Stop '${currentStop}' invalid for this route.` }); }
+
+        taxi.currentStop = currentStop;
+        await taxi.save();
+        // Re-populate fully for emit/response
+        await taxi.populate('routeId', 'routeName stops');
+        await taxi.populate('driverId', 'name username');
+
+        const updatedTaxiData = formatTaxiDataForEmit(taxi);
+        res.status(200).json({ message: "Location updated manually.", taxi: updatedTaxiData });
+
+        // Broadcast update
+        try {
+            const io = getIo();
+            const roomName = `taxi_${taxi._id}`;
+            io.to(roomName).emit("taxiUpdate", updatedTaxiData);
+            console.log(`[API] Emitted taxiUpdate to room ${roomName} (manual stop change)`);
+        } catch (socketError) { console.error("Socket emission error:", socketError); }
+
+    } catch (error) {
+        console.error("Error updating stop manually:", error);
+        next(error);
     }
+};
 
-    const route = await Route.findById(taxi.routeId);
-    if (!route) {
-      return res.status(404).json({ message: "Route not found." });
+
+// --- Get Stops For Taxi ---
+// (No socket emissions needed)
+exports.getStopsForTaxi = async (req, res, next) => {
+    try {
+        const { taxiId } = req.params;
+        // No need for driver auth check if passengers can see stops
+        const taxi = await Taxi.findById(taxiId).populate("routeId", "stops");
+        if (!taxi) { return res.status(404).json({ message: "Taxi not found." }); }
+        if (!taxi.routeId || !taxi.routeId.stops) { return res.status(404).json({ message: "Route/stops not found." }); }
+        // Sort stops by order before sending
+        const sortedStops = taxi.routeId.stops.sort((a, b) => a.order - b.order);
+        res.status(200).json({ stops: sortedStops });
+    } catch (error) {
+        console.error("Error fetching stops for taxi:", error);
+        next(error);
     }
+};
 
-    const validStop = route.stops.find((stop) => stop.name === currentStop);
-    if (!validStop) {
-      return res.status(400).json({ message: "Invalid stop selected." });
+// --- Monitor Taxi Endpoint (Get initial state) ---
+// (No socket emissions needed)
+exports.monitorTaxi = async (req, res, next) => {
+    try {
+        const { taxiId } = req.params;
+        // Fetch full details for initial display
+        const taxi = await Taxi.findById(taxiId)
+                               .populate('routeId', 'routeName stops')
+                               .populate('driverId', 'name username');
+        if (!taxi) { return res.status(404).json({ message: "Taxi not found." }); }
+        const taxiInfo = formatTaxiDataForEmit(taxi);
+        res.status(200).json({ message: "Taxi info fetched.", taxiInfo: taxiInfo });
+    } catch (error) {
+        console.error("Error fetching taxi info:", error);
+        next(error);
     }
-
-    taxi.currentStop = currentStop;
-    await taxi.save();
-
-    res.status(200).json({ message: "Current stop updated successfully.", taxi });
-    io.emit("taxiUpdateForPassenger", formatTaxiInfo(taxi));
-
-  } catch (error) {
-    next(error);
-  }
 };
