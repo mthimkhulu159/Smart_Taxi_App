@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, FC } from 'react';
 import {
     View, Text, FlatList, TouchableOpacity, Modal, StyleSheet,
-    TextInput, Alert, Animated, ScrollView, SafeAreaView, Platform,
+    TextInput, Animated, ScrollView, SafeAreaView, Platform,
     ActivityIndicator, ViewStyle, TextStyle
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
@@ -13,6 +13,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import io, { Socket } from 'socket.io-client'; // Import Socket type
 import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
 import { apiUrl } from '../api/apiUrl';
+import CustomPopup from '../components/CustomPopup'; // Import the CustomPopup component
 // --- Constants ---
 
 // --- Types and Interfaces ---
@@ -145,11 +146,25 @@ const TaxiManagement: React.FC = () => {
     const [sidebarVisible, setSidebarVisible] = useState(false);
     const socketRef = useRef<Socket | null>(null);
     const isMountedRef = useRef(true);
+    const [customPopupVisible, setCustomPopupVisible] = useState(false);
+    const [customPopupMessage, setCustomPopupMessage] = useState('');
+    const [customPopupType, setCustomPopupType] = useState<'success' | 'error'>('error');
 
     const navigation = useNavigation<TaxiManagementNavigationProp>();
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
+
+    const showCustomPopup = (message: string, type: 'success' | 'error') => {
+        setCustomPopupMessage(message);
+        setCustomPopupType(type);
+        setCustomPopupVisible(true);
+    };
+
+    const hideCustomPopup = () => {
+        setCustomPopupVisible(false);
+        setCustomPopupMessage('');
+    };
 
     // --- Fetch User ID and Taxis ---
     const loadInitialData = useCallback(async () => {
@@ -158,17 +173,50 @@ const TaxiManagement: React.FC = () => {
         let fetchedUserId: string | null = null;
         try {
             const token = await getToken();
-            if (!token) { Alert.alert('Authentication Error', 'Please login.'); if (isMountedRef.current) setIsLoading(false); return; }
+            if (!token) {
+                showCustomPopup('Please login.', 'error');
+                if (isMountedRef.current) setIsLoading(false);
+                return;
+            }
+            console.log("TM: Fetched Token:", token); // Log the token
+
             try {
-                const userData = await fetchData(apiUrl, 'api/users/get-user', { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
-                if (userData?.user?._id && isMountedRef.current) { fetchedUserId = userData.user._id; setUserId(fetchedUserId); console.log("TM: User ID fetched:", fetchedUserId); }
-                else if (isMountedRef.current) { console.error("TM: Failed to get user ID."); Alert.alert('Error', 'Could not verify user identity.'); }
-            } catch (userError: any) { console.error("TM: Error fetching user:", userError); if (isMountedRef.current) Alert.alert('Error', 'Could not fetch user details.'); }
+                const userData = await fetchData(apiUrl, 'api/users/get-user', {
+                    method: 'GET',
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                console.log("TM: User Data Response:", userData); // Log the entire user data response
+                // ***** FIX HERE: Access user ID using 'id' instead of '_id' *****
+                if (userData?.user?.id && isMountedRef.current) {
+                    fetchedUserId = userData.user.id;
+                    setUserId(fetchedUserId);
+                    console.log("TM: User ID fetched:", fetchedUserId);
+                } else if (isMountedRef.current) {
+                    console.error("TM: Failed to get user ID - Incorrect data structure or missing ID.");
+                    showCustomPopup('Could not verify user identity.', 'error');
+                }
+            } catch (userError: any) {
+                console.error("TM: Error fetching user:", userError);
+                if (isMountedRef.current) showCustomPopup('Could not fetch user details.', 'error');
+            }
+
             const taxiData = await fetchData(apiUrl, 'api/taxis/driver-taxi', { headers: { Authorization: `Bearer ${token}` } });
-            if (taxiData?.taxis && isMountedRef.current) { setTaxis(taxiData.taxis); }
-            else if (isMountedRef.current) { setTaxis([]); console.log('No taxis assigned.'); }
-        } catch (error: any) { if (isMountedRef.current) { setTaxis([]); Alert.alert('Error', `Failed to load data: ${error.message || 'Unknown error'}`); } console.error(error); }
-        finally { if (isMountedRef.current) setIsLoading(false); }
+            console.log("TM: Taxi Data Response:", taxiData); // Log the entire taxi data response
+            if (taxiData?.taxis && isMountedRef.current) {
+                setTaxis(taxiData.taxis);
+            } else if (isMountedRef.current) {
+                setTaxis([]);
+                console.log('No taxis assigned.');
+            }
+        } catch (error: any) {
+            if (isMountedRef.current) {
+                setTaxis([]);
+                showCustomPopup(`Failed to load data: ${error.message || 'Unknown error'}`, 'error');
+            }
+            console.error("TM: General error loading data:", error);
+        } finally {
+            if (isMountedRef.current) setIsLoading(false);
+        }
     }, []);
 
     // --- Socket Connection Effect ---
@@ -204,7 +252,7 @@ const TaxiManagement: React.FC = () => {
                 const currentSelectedTaxi = selectedTaxi; const currentStopExists = names.includes(currentSelectedTaxi?.currentStop || '');
                 const initialStop = currentStopExists ? (currentSelectedTaxi?.currentStop ?? names[0] ?? '') : (names[0] ?? ''); setNewStop(initialStop);
             } else { if (isMountedRef.current) { setStopOptions([]); setNewStop(''); } }
-        } catch (error: any) { console.error('Error fetching stops:', error.message); if (isMountedRef.current) { setStopOptions([]); setNewStop(''); } Alert.alert('Error', `Failed to load stops: ${error.message}`); }
+        } catch (error: any) { console.error('Error fetching stops:', error.message); if (isMountedRef.current) { setStopOptions([]); setNewStop(''); } showCustomPopup(`Failed to load stops: ${error.message}`, 'error'); }
         finally { if (isMountedRef.current) setIsLoadingStops(false); }
     }, [selectedTaxi]);
 
@@ -223,16 +271,21 @@ const TaxiManagement: React.FC = () => {
             else if (updateType === 'stop') { if (!newStop) throw new Error('Select stop.'); endpoint = `api/taxis/${selectedTaxi._id}/currentStopManual`; body = { currentStop: newStop }; optimisticUpdateData = { currentStop: newStop }; }
             else if (updateType === 'load') {
                 const parsedLoad = parseInt(newLoad, 10); if (isNaN(parsedLoad) || parsedLoad < 0) throw new Error('Invalid load.');
-                if (selectedTaxi.capacity != null && parsedLoad > selectedTaxi.capacity) throw new Error(`Load exceeds capacity (${selectedTaxi.capacity}).`);
+                if (selectedTaxi.capacity != null) {
+                    const capacityNumber = Number(selectedTaxi.capacity);
+                    if (parsedLoad > capacityNumber) {
+                        throw new Error(`Load exceeds capacity (${selectedTaxi.capacity}).`);
+                    }
+                }
                 endpoint = `api/taxis/${selectedTaxi._id}/load`; body = { currentLoad: parsedLoad }; optimisticUpdateData = { currentLoad: parsedLoad };
             } else { throw new Error("Invalid update type."); }
             const token = await getToken(); if (!token) throw new Error('Auth required.');
             const response = await fetchData(apiUrl, endpoint, { method: 'PUT', body, headers: { Authorization: `Bearer ${token}` } });
             if (isMountedRef.current) {
                 setTaxis(prevTaxis => prevTaxis.map(t => t._id === selectedTaxi._id ? { ...t, ...optimisticUpdateData } : t));
-                Alert.alert('Success', response.message || 'Update sent!'); setModalVisible(false);
+                showCustomPopup(response.message || 'Update sent!', 'success'); setModalVisible(false);
             }
-        } catch (error: any) { if (isMountedRef.current) { Alert.alert('Update Error', error.message || 'Update failed.'); } console.error(error); }
+        } catch (error: any) { if (isMountedRef.current) { showCustomPopup(error.message || 'Update failed.', 'error'); } console.error(error); }
         finally { if (isMountedRef.current) setIsSubmitting(false); }
     };
 
@@ -368,6 +421,12 @@ const TaxiManagement: React.FC = () => {
                         </View>
                     </Modal>
                 </Animated.View>
+                <CustomPopup
+                    visible={customPopupVisible}
+                    message={customPopupMessage}
+                    type={customPopupType}
+                    onClose={hideCustomPopup}
+                />
             </SafeAreaView>
         </LinearGradient>
     );

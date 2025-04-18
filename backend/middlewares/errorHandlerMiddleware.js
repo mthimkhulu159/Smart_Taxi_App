@@ -12,7 +12,7 @@ const errorHandler = (err, req, res, next) => {
     };
   
     // Only send stack trace in development
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === "production") {
       response.stack = err.stack;
     }
   

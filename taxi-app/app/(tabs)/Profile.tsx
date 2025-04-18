@@ -6,19 +6,17 @@ import {
     StyleSheet,
     Image,
     TextInput,
-    Alert, // Keep for confirmation dialogs (like logout)
     ScrollView,
     Animated,
     SafeAreaView,
     Platform,
     Dimensions,
     ActivityIndicator,
-    // Button, // Removed if not needed for testing
     ViewStyle,
-    Modal, // Keep for ErrorPopup
+    Modal, // Keep for other modals if needed
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Feather } from "@expo/vector-icons"; // Keep for ErrorPopup Icon
+import { Feather } from "@expo/vector-icons"; // Keep if used elsewhere
 import { FontAwesome, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { fetchData, getToken } from '../api/api'; // Keep
 import { useNavigation } from '@react-navigation/native';
@@ -26,25 +24,12 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../context/authContext';
 import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
 import { apiUrl } from '../api/apiUrl';
-
+import { RootStackParamList } from '../types/navigation';
+// import ErrorPopup from '../components/ErrorPopup'; // Removed ErrorPopup import
+import CustomConfirm from '../components/CustomConfirm'; // Import the CustomConfirm component
+import CustomPopup from '../components/CustomPopup'; // Import the new CustomPopup component
 // --- Constants ---
 const { width: windowWidth } = Dimensions.get('window');
-
-// --- Navigation Types --- (Keep as is)
-type RootStackParamList = {
-    Home: { acceptedTaxiId?: string };
-    requestRide: undefined;
-    ViewTaxi: undefined;
-    ViewRequests: undefined;
-    LiveChat: undefined;
-    TaxiManagement: undefined;
-    Profile: undefined;
-    AcceptedRequest: undefined;
-    AcceptedPassenger: undefined;
-    ViewRoute: undefined;
-    Auth: undefined;
-    TaxiFareCalculator: undefined;
-};
 
 type ProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Profile'>;
 
@@ -72,52 +57,16 @@ const colors = {
     backgroundGradientStart: "#FFFFFF",
     backgroundGradientEnd: "#E8F0FE",
     text: "#333",
-    textLight: "#FFF", // Used in ErrorPopup text
+    textLight: "#FFF", // Used in ErrorPopup text (might not be needed now)
     placeholder: "#A0A0A0",
     white: "#FFFFFF",
-    error: "#D32F2F", // Used in ErrorPopup icon
+    error: "#D32F2F", // Used in ErrorPopup icon (might need adjustment)
     success: "#28A745",
-    // Added from AuthScreen for ErrorPopup styling consistency
+    // Added from AuthScreen for ErrorPopup styling consistency (might not be needed now)
     background: '#29335C', // Background for the popup modal view
     primaryAccent: '#007AFF', // Button color for the popup
     buttonText: '#FFFFFF', // Text color for the popup button
 };
-
-// --- Custom Error Popup Component (Copied from AuthScreen) ---
-interface ErrorPopupProps {
-    visible: boolean;
-    message: string;
-    onClose: () => void;
-    colors: typeof colors; // Use the defined colors object
-}
-const ErrorPopup: React.FC<ErrorPopupProps> = ({ visible, message, onClose, colors }) => {
-    if (!visible) return null;
-    return (
-        <Modal animationType="fade" transparent={true} visible={visible} onRequestClose={onClose}>
-            <View style={popupStyles.centeredView}>
-                {/* Use colors from props */}
-                <View style={[popupStyles.modalView, { backgroundColor: colors.background }]}>
-                    <Feather name="alert-circle" size={30} color={colors.error} style={popupStyles.errorIcon} />
-                    <Text style={[popupStyles.modalTitle, { color: colors.textLight }]}>Info</Text> {/* Changed title to Info as it's used for success too */}
-                    <Text style={[popupStyles.modalText, { color: colors.textLight }]}>{message}</Text>
-                    <TouchableOpacity style={[popupStyles.button, { backgroundColor: colors.primaryAccent }]} onPress={onClose}>
-                        <Text style={[popupStyles.buttonText, { color: colors.buttonText }]}>OK</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </Modal>
-    );
-};
-const popupStyles = StyleSheet.create({
-    centeredView: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: 'rgba(0, 0, 0, 0.6)' },
-    modalView: { margin: 20, borderRadius: 15, padding: 25, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5, width: '80%', maxWidth: 350 },
-    errorIcon: { marginBottom: 15 },
-    modalTitle: { marginBottom: 5, textAlign: "center", fontSize: 18, fontWeight: '600' },
-    modalText: { marginBottom: 20, textAlign: "center", fontSize: 16, lineHeight: 22 },
-    button: { borderRadius: 8, paddingVertical: 12, paddingHorizontal: 30, elevation: 2, minWidth: 100, alignItems: 'center' },
-    buttonText: { fontSize: 16, fontWeight: "bold", letterSpacing: 0.5 }
-});
-// --- End of ErrorPopup Component ---
 
 
 // --- Loading Component (Keep as is) ---
@@ -193,24 +142,35 @@ const ProfileScreen: React.FC = () => {
     const [routeName, setRouteName] = useState('');
     const [sidebarVisible, setSidebarVisible] = useState(false);
 
-    // --- State for Error Popup ---
-    const [isErrorPopupVisible, setIsErrorPopupVisible] = useState(false);
-    const [popupErrorMessage, setPopupErrorMessage] = useState<string>('');
+    // --- State for Custom Popup ---
+    const [isPopupVisible, setIsPopupVisible] = useState(false);
+    const [popupMessage, setPopupMessage] = useState<string>('');
+    const [popupType, setPopupType] = useState<'success' | 'error' | 'warning' | 'info'>('info');
+    const [popupDetailedMessage, setPopupDetailedMessage] = useState<string | undefined>(undefined);
+    const [popupOnRetry, setPopupOnRetry] = useState<(() => void) | undefined>(undefined);
+
+    // --- State for Custom Confirm ---
+    const [isLogoutConfirmVisible, setIsLogoutConfirmVisible] = useState(false);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
 
-    // --- Helper function to show the error/info popup ---
-    const showError = (message: string) => {
-        setPopupErrorMessage(message);
-        setIsErrorPopupVisible(true);
+    // --- Helper function to show the custom popup ---
+    const showPopup = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', detailedMessage?: string, onRetry?: () => void) => {
+        setPopupMessage(message);
+        setPopupType(type);
+        setPopupDetailedMessage(detailedMessage);
+        setPopupOnRetry(onRetry);
+        setIsPopupVisible(true);
     };
 
-    // --- Helper function to close the error/info popup ---
-    const clearError = () => {
-        setIsErrorPopupVisible(false);
-        // Optionally clear message after fade out animation if needed, but generally not required
-        // setPopupErrorMessage('');
+    // --- Helper function to close the custom popup ---
+    const closePopup = () => {
+        setIsPopupVisible(false);
+        setPopupDetailedMessage(undefined);
+        setPopupOnRetry(undefined);
+        // Optionally clear message after fade out animation if needed
+        // setPopupMessage('');
     };
 
     // --- Effects ---
@@ -218,7 +178,7 @@ const ProfileScreen: React.FC = () => {
         const fetchUserProfile = async () => {
             setIsLoading(true);
             // Reset previous errors when fetching
-            clearError();
+            closePopup();
             const token = await getToken();
             if (token) {
                 try {
@@ -235,30 +195,34 @@ const ProfileScreen: React.FC = () => {
                     console.error('Error fetching user profile:', error);
                     // Extract message from common error structures
                     let displayMessage = "Failed to fetch your profile data. Please try again later.";
+                    let detailedErrorMessage: string | undefined;
                     if (error?.response?.data?.message) {
                         displayMessage = error.response.data.message;
+                        detailedErrorMessage = JSON.stringify(error.response.data);
                     } else if (error?.data?.message) {
                          displayMessage = error.data.message;
+                         detailedErrorMessage = JSON.stringify(error.data);
                     } else if (error?.message) {
                          displayMessage = error.message;
+                         detailedErrorMessage = error.message;
                     }
-                    showError(displayMessage);
+                    showPopup(displayMessage, 'error', detailedErrorMessage);
                     setUser(null); // Clear user data on error
                 } finally {
                     setIsLoading(false);
                 }
             } else {
                 // Handle missing token case
-                showError('Your session has expired. Please log in again.');
+                showPopup('Your session has expired. Please log in again.', 'warning');
                 setIsLoading(false);
                 setUser(null);
                 try {
                     await logout();
                     navigation.reset({ index: 0, routes: [{ name: 'Auth' }] });
-                } catch (logoutError) {
+                } catch (logoutError: unknown) {
                     console.error("Error during automatic logout:", logoutError);
                     // Show additional error for logout failure if needed
-                    showError("Session expired. An error also occurred during automatic logout.");
+                    showPopup("Session expired. An error also occurred during automatic logout.", 'error', (logoutError as Error)?.message);
                 }
             }
         };
@@ -285,13 +249,13 @@ const ProfileScreen: React.FC = () => {
     // --- Handlers ---
 
     const handleSave = async () => {
-        // Client-side validation using showError
+        // Client-side validation using showPopup
         if (!name.trim() || !phone.trim()) {
-            showError('Name and phone cannot be empty.');
+            showPopup('Name and phone cannot be empty.', 'warning');
             return;
         }
         setIsSaving(true);
-        clearError(); // Clear previous errors
+        closePopup(); // Close any previous popups
         if (user) {
             try {
                 const response = await fetchData(apiUrl, 'api/users/update-details', {
@@ -302,63 +266,67 @@ const ProfileScreen: React.FC = () => {
                 if (response?.user) {
                     // Update state based on response
                     setUser(currentUser => ({
-                         ...(currentUser ?? {} as UserProfile), // Handle potential null case
-                         name: response.user.name || currentUser?.name,
-                         phone: response.user.phone || currentUser?.phone,
-                         // Keep other fields like email, role, _id
-                         email: currentUser?.email ?? response.user.email,
-                         role: currentUser?.role ?? response.user.role,
-                         _id: currentUser?._id ?? response.user._id,
-                    }));
+                            ...(currentUser ?? {} as UserProfile), // Handle potential null case
+                            name: response.user.name || currentUser?.name,
+                            phone: response.user.phone || currentUser?.phone,
+                            // Keep other fields like email, role, _id
+                            email: currentUser?.email ?? response.user.email,
+                            role: currentUser?.role ?? response.user.role,
+                            _id: currentUser?._id ?? response.user._id,
+                        }));
                     setName(response.user.name || name);
                     setPhone(response.user.phone || phone);
                     setIsEditing(false);
-                    // Use showError for success message as per existing pattern
-                    showError('Profile updated successfully!');
+                    // Use showPopup for success message
+                    showPopup('Profile updated successfully!', 'success');
                 } else {
                     throw new Error(response?.message || 'Update response did not contain user data.');
                 }
             } catch (error: any) {
                 console.error('Error updating profile:', error);
-                 let displayMessage = "Failed to update profile. Please try again.";
-                 if (error?.response?.data?.message) {
-                     displayMessage = error.response.data.message;
-                 } else if (error?.data?.message) {
-                      displayMessage = error.data.message;
-                 } else if (error?.message) {
-                      displayMessage = error.message;
-                 }
-                showError(displayMessage);
+                let displayMessage = "Failed to update profile. Please try again.";
+                let detailedErrorMessage: string | undefined;
+                if (error?.response?.data?.message) {
+                    displayMessage = error.response.data.message;
+                    detailedErrorMessage = JSON.stringify(error.response.data);
+                } else if (error?.data?.message) {
+                     displayMessage = error.data.message;
+                     detailedErrorMessage = JSON.stringify(error.data);
+                } else if (error?.message) {
+                     displayMessage = error.message;
+                     detailedErrorMessage = error.message;
+                }
+                showPopup(displayMessage, 'error', detailedErrorMessage, handleSave); // Pass handleSave for retry
             } finally {
                  setIsSaving(false);
             }
         } else {
-            showError('Cannot save: User data is not available.');
+            showPopup('Cannot save: User data is not available.', 'error');
             setIsSaving(false); // Ensure loading state is reset
         }
     };
     const handleUpgradeRole = async () => {
-        clearError(); // Clear previous errors
+        closePopup(); // Close any previous popups
         // Validation checks
         if (user?.role?.includes('driver')) {
-          showError('Your account already has driver privileges.');
+          showPopup('Your account already has driver privileges.', 'info');
           return;
         }
         if (!user) {
-          showError('User data missing. Cannot upgrade role.');
+          showPopup('User data missing. Cannot upgrade role.', 'error');
           return;
         }
-    
+
         setIsUpgrading(true);
-    
+
         try {
           console.log("Attempting role upgrade...");
           const response = await fetchData(apiUrl, 'api/users/upgrade-role', { method: 'PUT' });
           console.log("Role upgrade response received:", response);
-    
+
           // Handle successful submission of the upgrade request
           if (response?.message) {
-            showError(response.message); // e.g., "Your request for an upgrade to driver has been sent for approval"
+            showPopup(response.message, 'success'); // e.g., "Your request for an upgrade to driver has been sent for approval"
             // Optionally, you might want to update the user state to reflect that an upgrade is pending
             setUser(prevUser => {
               if (prevUser) {
@@ -371,95 +339,94 @@ const ProfileScreen: React.FC = () => {
           // Handle unexpected success scenario where the role might be immediately updated (though backend suggests otherwise)
           else if (response?.user?.role?.includes('driver')) {
             setUser(response.user);
-            showError('Your account has been upgraded to Driver!');
+            showPopup('Your account has been upgraded to Driver!', 'success');
           }
           // Handle unexpected error or no message in the success response
           else if (response?.error) {
             console.warn("Role upgrade request failed:", response);
-            showError(response.error);
+            showPopup(response.error, 'error', response.error, handleUpgradeRole);
           }
           // Handle other unexpected scenarios
           else {
             console.warn("Unexpected response format for role upgrade:", response);
-            showError('Something went wrong while submitting the upgrade request.');
+            showPopup('Something went wrong while submitting the upgrade request.', 'error', JSON.stringify(response), handleUpgradeRole);
           }
         } catch (error: any) {
           console.error('Error upgrading role:', error);
           let displayMessage = "Failed to submit upgrade request. Please try again or contact support.";
+          let detailedErrorMessage: string | undefined;
           if (error?.response?.data?.message) {
             displayMessage = error.response.data.message;
+            detailedErrorMessage = JSON.stringify(error.response.data);
           } else if (error?.data?.message) {
             displayMessage = error.data.message;
+            detailedErrorMessage = JSON.stringify(error.data);
           } else if (error?.message) {
             displayMessage = error.message;
+            detailedErrorMessage = error.message;
           }
-          showError(displayMessage);
+          showPopup(displayMessage, 'error', detailedErrorMessage, handleUpgradeRole);
         } finally {
           setIsUpgrading(false);
         }
       };
-      
+
     const handleLogout = () => {
-        // Use Alert.alert for confirmation - This is appropriate for interactive dialogs
-        Alert.alert(
-            "Confirm Logout",
-            "Are you sure you want to log out?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Logout",
-                    style: "destructive",
-                    onPress: async () => {
-                        clearError(); // Clear any previous popups
-                        try {
-                            await logout(); // Call the logout function from context
-                            // Navigate to Auth screen after successful logout
-                            navigation.reset({ index: 0, routes: [{ name: 'Auth' }] });
-                        } catch (error: any) {
-                            console.error("Error during logout process:", error);
-                            // Use showError for errors *during* the logout API call or cleanup
-                            showError("An unexpected error occurred during logout.");
-                        }
-                    }
-                }
-            ],
-            { cancelable: true }
-        );
+        // Show the custom confirm modal
+        setIsLogoutConfirmVisible(true);
+    };
+
+    const confirmLogout = async () => {
+        setIsLogoutConfirmVisible(false);
+        closePopup(); // Close any previous popups
+        try {
+            await logout(); // Call the logout function from context
+            // Navigate to Auth screen after successful logout
+            navigation.reset({ index: 0, routes: [{ name: 'Auth' }] });
+        } catch (error: unknown) {
+            console.error("Error during logout process:", error);
+            // Use showPopup for errors *during* the logout API call or cleanup
+            showPopup("An unexpected error occurred during logout.", 'error', (error as Error)?.message);
+        }
+    };
+
+    const cancelLogout = () => {
+        setIsLogoutConfirmVisible(false);
     };
 
     // --- Taxi Registration Handler ---
     const handleAddTaxi = async () => {
-        clearError(); // Clear previous errors
+        closePopup(); // Close any previous popups
 
-        // Client-side validation using showError
+        // Client-side validation using showPopup
         if (!numberPlate.trim() || !capacity.trim() || !routeName.trim() || !currentStop.trim()) {
-            showError('Please fill in all required taxi details (Number Plate, Capacity, Route, Current Stop).');
+            showPopup('Please fill in all required taxi details (Number Plate, Capacity, Route, Current Stop).', 'warning');
             return;
         }
         const parsedCapacity = parseInt(capacity, 10);
         if (isNaN(parsedCapacity) || parsedCapacity <= 0) {
-            showError('Please enter a valid positive number for capacity.');
+            showPopup('Please enter a valid positive number for capacity.', 'warning');
             return;
         }
 
         setIsAddingTaxi(true);
         try {
             const body = {
-                 numberPlate: numberPlate.trim().toUpperCase(), // Standardize format
-                 routeName: routeName.trim(),
-                 capacity: parsedCapacity,
-                 currentStop: currentStop.trim(),
+                    numberPlate: numberPlate.trim().toUpperCase(), // Standardize format
+                    routeName: routeName.trim(),
+                    capacity: parsedCapacity,
+                    currentStop: currentStop.trim(),
             };
             console.log("Adding taxi with data:", body); // Log data being sent
             const response = await fetchData(apiUrl, 'api/taxis/addTaxi', {
-                 method: 'POST',
-                 body: body,
-             });
+                    method: 'POST',
+                    body: body,
+            });
 
             console.log("Add taxi response:", response); // Log response
 
             if (response?.taxi?._id) { // Check for a key property of the added taxi
-                showError(`Taxi ${response.taxi.numberPlate} added successfully!`);
+                showPopup(`Taxi ${response.taxi.numberPlate} added successfully!`, 'success');
                 // Clear form and hide it
                 setNumberPlate('');
                 setCapacity('');
@@ -473,19 +440,23 @@ const ProfileScreen: React.FC = () => {
             }
         } catch (error: any) {
             console.error('Error adding taxi:', error);
-             let displayMessage = "Failed to add taxi. Please try again.";
-             if (error?.response?.data?.message) { // Check for specific backend message
-                 displayMessage = error.response.data.message;
-             } else if (error?.data?.message) {
-                  displayMessage = error.data.message;
-             } else if (error?.message) {
-                  displayMessage = error.message; // Fallback to generic error message
-             }
-             // Handle specific common errors if needed
-             if (displayMessage.includes('duplicate key error') && displayMessage.includes('numberPlate')) {
+            let displayMessage = "Failed to add taxi. Please try again.";
+            let detailedErrorMessage: string | undefined;
+            if (error?.response?.data?.message) { // Check for specific backend message
+                displayMessage = error.response.data.message;
+                detailedErrorMessage = JSON.stringify(error.response.data);
+            } else if (error?.data?.message) {
+                 displayMessage = error.data.message;
+                 detailedErrorMessage = JSON.stringify(error.data);
+            } else if (error?.message) {
+                 displayMessage = error.message; // Fallback to generic error message
+                 detailedErrorMessage = error.message;
+            }
+            // Handle specific common errors if needed
+            if (displayMessage.includes('duplicate key error') && displayMessage.includes('numberPlate')) {
                 displayMessage = `A taxi with number plate ${numberPlate.trim().toUpperCase()} already exists.`;
-             }
-            showError(displayMessage);
+            }
+            showPopup(displayMessage, 'error', detailedErrorMessage, handleAddTaxi);
         } finally {
             setIsAddingTaxi(false);
         }
@@ -525,19 +496,21 @@ const ProfileScreen: React.FC = () => {
                     <View style={styles.errorContainer}>
                         <MaterialIcons name="error-outline" size={60} color={colors.error} />
                         <Text style={styles.errorText}>Could not load profile.</Text>
-                        <Text style={styles.errorSubText}>{popupErrorMessage || "Please check connection or try logging out."}</Text>
+                        <Text style={styles.errorSubText}>{popupMessage || "Please check connection or try logging out."}</Text>
                         {/* Keep logout button accessible */}
                         <TouchableOpacity style={styles.logoutButtonError} onPress={handleLogout}>
                             <Ionicons name="log-out-outline" size={20} color={colors.white} style={{ marginRight: 8 }} />
                             <Text style={styles.logoutButtonTextError}>Logout</Text>
                         </TouchableOpacity>
                     </View>
-                    {/* Error Popup can still display specific errors like token expiry */}
-                    <ErrorPopup
-                        visible={isErrorPopupVisible}
-                        message={popupErrorMessage}
-                        onClose={clearError}
-                        colors={colors} // Pass colors object
+                    {/* Custom Popup for displaying errors/info */}
+                    <CustomPopup
+                        visible={isPopupVisible}
+                        message={popupMessage}
+                        type={popupType}
+                        detailedMessage={popupDetailedMessage}
+                        onClose={closePopup}
+                        onRetry={popupOnRetry}
                     />
                 </SafeAreaView>
             </LinearGradient>
@@ -608,10 +581,10 @@ const ProfileScreen: React.FC = () => {
                                     <TextInput style={styles.input} placeholder="Phone Number" placeholderTextColor="#aaa" value={phone} onChangeText={setPhone} keyboardType="phone-pad" textContentType="telephoneNumber" />
                                     <View style={styles.editActionsContainer}>
                                         <TouchableOpacity style={[styles.editActionButton, styles.cancelButton]} onPress={() => { setIsEditing(false); setName(user.name); setPhone(user.phone); }}>
-                                            <Text style={[styles.editActionButtonText, styles.cancelButtonText]}>Cancel</Text>
+                                            <Text style={[styles.cancelButtonText]}>Cancel</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity style={[styles.editActionButton, styles.saveButton]} onPress={handleSave} disabled={isSaving}>
-                                            {isSaving ? <ActivityIndicator size="small" color={colors.white} /> : <Text style={[styles.editActionButtonText, styles.saveButtonText]}>Save Changes</Text>}
+                                            {isSaving ? <ActivityIndicator size="small" color={colors.white} /> : <Text style={[styles.saveButtonText]}>Save Changes</Text>}
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -663,12 +636,22 @@ const ProfileScreen: React.FC = () => {
                     </ScrollView>
                 </Animated.View>
 
-                {/* --- Global Error Popup --- */}
-                <ErrorPopup
-                    visible={isErrorPopupVisible}
-                    message={popupErrorMessage}
-                    onClose={clearError}
-                    colors={colors} // Pass the colors object
+                {/* --- Custom Popup Component --- */}
+                <CustomPopup
+                    visible={isPopupVisible}
+                    message={popupMessage}
+                    type={popupType}
+                    detailedMessage={popupDetailedMessage}
+                    onClose={closePopup}
+                    onRetry={popupOnRetry}
+                />
+
+                {/* --- Custom Confirm Component --- */}
+                <CustomConfirm
+                    visible={isLogoutConfirmVisible}
+                    message="Are you sure you want to log out?"
+                    onCancel={cancelLogout}
+                    onConfirm={confirmLogout}
                 />
             </SafeAreaView>
         </LinearGradient>
@@ -699,41 +682,39 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.secondary,
     },
-    headerButton: {
-        padding: 5, // Add padding for easier touch
-        minWidth: 40, // Ensure minimum touch area
-        alignItems: 'center',
-    },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: '600',
+        fontSize: 22,
         color: colors.primary,
+        fontWeight: 'bold',
+    },
+    headerButton: {
+        padding: 8,
     },
     scrollContent: {
-        paddingHorizontal: 15,
-        paddingBottom: 40, // Ensure space at the bottom
+        padding: 20,
     },
     profilePicContainer: {
         alignItems: 'center',
-        marginVertical: 20,
+        marginBottom: 20,
     },
     profilePic: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        borderWidth: 3,
-        borderColor: colors.primary,
-        backgroundColor: colors.secondary, // Placeholder bg
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: colors.secondary, // Placeholder background
     },
     sectionCard: {
         backgroundColor: colors.white,
-        borderRadius: 12,
+        borderRadius: 10,
         padding: 15,
         marginBottom: 20,
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.15,
-        shadowRadius: 3,
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 3.84,
         elevation: 3,
     },
     sectionHeader: {
@@ -741,150 +722,109 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.secondary,
-        paddingBottom: 10,
     },
     sectionTitle: {
         fontSize: 18,
-        fontWeight: '600',
-        color: colors.primary,
+        fontWeight: 'bold',
+        color: colors.text,
     },
     editButtonInline: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: colors.secondary,
         paddingVertical: 5,
         paddingHorizontal: 10,
-        // backgroundColor: colors.secondary, // Optional background
         borderRadius: 5,
     },
     editButtonText: {
         marginLeft: 5,
         color: colors.primary,
-        fontWeight: '500',
+        fontSize: 16,
     },
     infoContainer: {
-        // Container for InfoRows
+        // Styles for displaying user info
     },
     infoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 10,
     },
     infoIcon: {
         marginRight: 10,
-        width: 20, // Ensure alignment
-        textAlign: 'center',
+        width: 20, // Adjust width to prevent text overlap
+        alignItems: 'center', // Center the icon within its space
     },
     infoLabel: {
-        fontSize: 15,
+        fontWeight: 'bold',
         color: colors.text,
-        fontWeight: '500',
         marginRight: 5,
-        minWidth: 60, // Align values
+        flexShrink: 0, // Prevent label from shrinking too much
     },
     infoValue: {
-        fontSize: 15,
         color: colors.text,
-        flexShrink: 1, // Allow text to shrink if needed
+        flexShrink: 1, // Allow value to shrink and wrap
     },
     editingContainer: {
-        marginTop: 10,
+        marginVertical: 10,
     },
     input: {
-        borderWidth: 1,
-        borderColor: colors.secondary,
-        backgroundColor: '#F8F9FA', // Slightly off-white bg
-        borderRadius: 8,
-        paddingVertical: 12,
-        paddingHorizontal: 15,
-        fontSize: 15,
-        marginBottom: 15,
+        backgroundColor: colors.secondary,
+        borderRadius: 5,
+        padding: 10,
+        marginBottom: 10,
         color: colors.text,
     },
     editActionsContainer: {
         flexDirection: 'row',
-        justifyContent: 'flex-end', // Align buttons to the right
-        marginTop: 10,
+        justifyContent: 'flex-end',
     },
     editActionButton: {
         paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 8,
+        paddingHorizontal: 15,
+        borderRadius: 5,
         marginLeft: 10,
-        flexDirection: 'row', // Allow for icon/indicator
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: 80, // Minimum width
-    },
-    editActionButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
-        textAlign: 'center',
     },
     cancelButton: {
-        backgroundColor: colors.secondary, // Lighter background for cancel
+        backgroundColor: colors.white,
+        borderWidth: 1,
+        borderColor: colors.primary,
     },
     cancelButtonText: {
-        color: colors.text, // Standard text color
+        color: colors.primary,
     },
     saveButton: {
-        backgroundColor: colors.success, // Use success color for save
+        backgroundColor: colors.primary,
     },
     saveButtonText: {
-        color: colors.white, // White text on success button
+        color: colors.white,
     },
-    actionButtonBase: { // Base style for ActionButton component
+    actionButtonBase: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 20,
+        paddingVertical: 12,
         borderRadius: 8,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 3,
-        elevation: 3,
     },
     actionButtonIcon: {
         marginRight: 8,
     },
     actionButtonText: {
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: 'bold',
     },
-    addTaxiHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingBottom: 10, // Add padding if needed
-    },
-    taxiFormContainer: {
-        marginTop: 15, // Space between header and form
-        borderTopWidth: 1,
-        borderTopColor: colors.secondary,
-        paddingTop: 15,
-    },
-    // Loading Styles
     loadingGradient: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    loadingContainerInternal: { // Renamed to avoid conflict
+    loadingContainerInternal: {
         alignItems: 'center',
-        padding: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.8)', // Semi-transparent white
-        borderRadius: 15,
     },
-    loadingTextInternal: { // Renamed to avoid conflict
-        marginTop: 15,
-        fontSize: 18,
+    loadingTextInternal: {
+        marginTop: 10,
+        fontSize: 16,
         color: colors.primary,
-        fontWeight: '500',
     },
-    // Error View Styles
     errorContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -893,9 +833,9 @@ const styles = StyleSheet.create({
     },
     errorText: {
         fontSize: 20,
-        fontWeight: '600',
+        fontWeight: 'bold',
         color: colors.error,
-        marginTop: 15,
+        marginTop: 20,
         textAlign: 'center',
     },
     errorSubText: {
@@ -903,23 +843,30 @@ const styles = StyleSheet.create({
         color: colors.text,
         marginTop: 10,
         textAlign: 'center',
-        marginBottom: 20,
     },
     logoutButtonError: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.error,
-        paddingVertical: 12,
-        paddingHorizontal: 30,
-        borderRadius: 25,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 8,
         marginTop: 20,
     },
     logoutButtonTextError: {
         color: colors.white,
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: 'bold',
+    },
+    addTaxiHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 10,
+    },
+    taxiFormContainer: {
+        marginTop: 15,
     },
 });
-
 
 export default ProfileScreen;

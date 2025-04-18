@@ -24,9 +24,11 @@ import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from '@react-navigation/stack';
 import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
 import { apiUrl } from "../api/apiUrl";
-
-// *** Import the new ErrorPopup component ***
-import ErrorPopup from '../components/ErrorPopup'; // (ADJUST PATH if needed)
+import { RootStackParamList } from "../types/navigation";
+// *** REMOVE ErrorPopup import ***
+// import ErrorPopup from '../components/ErrorPopup'; // (ADJUST PATH if needed)
+// *** IMPORT CustomPopup ***
+import CustomPopup from '../components/CustomPopup'; // Adjust the path if necessary
 
 // --- Types and Interfaces (Keep as is) ---
 interface Taxi {
@@ -37,22 +39,6 @@ interface Taxi {
     currentLoad?: number;
     maxLoad?: number;
 }
-
-// --- Navigation Types (Keep as is) ---
-type RootStackParamList = {
-    Home: { acceptedTaxiId?: string };
-    requestRide: undefined;
-    ViewTaxi: undefined;
-    ViewRequests: undefined;
-    ViewRoute: undefined;
-    LiveChat: undefined;
-    TaxiManagement: undefined;
-    Profile: undefined;
-    AcceptedRequest: undefined;
-    AcceptedPassenger: undefined;
-    Auth: undefined;
-    TaxiFareCalculator: undefined;
-};
 
 type ViewTaxiNavigationProp = StackNavigationProp<RootStackParamList, 'ViewTaxi'>;
 
@@ -118,9 +104,10 @@ const ViewTaxi: React.FC = () => {
     const [sidebarVisible, setSidebarVisible] = useState(false);
     const [hasSearched, setHasSearched] = useState<boolean>(false);
 
-    // *** Add State for Error Popup ***
-    const [isErrorPopupVisible, setIsErrorPopupVisible] = useState(false);
-    const [errorMessage, setErrorMessage] = useState('');
+    // *** Replace Error Popup state with Custom Popup state ***
+    const [isPopupVisible, setIsPopupVisible] = useState(false);
+    const [popupMessage, setPopupMessage] = useState('');
+    const [popupType, setPopupType] = useState<'success' | 'error' | 'warning' | 'info'>('error'); // Default to error for this screen
 
     const navigation = useNavigation<ViewTaxiNavigationProp>();
 
@@ -135,24 +122,30 @@ const ViewTaxi: React.FC = () => {
 
     // --- Functions ---
 
-    // *** Helper function to show the error popup ***
-    const showErrorPopup = (message: string) => {
-        setErrorMessage(message);
-        setIsErrorPopupVisible(true);
+    // *** Update showErrorPopup to use CustomPopup state ***
+    const showPopup = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'error') => {
+        setPopupMessage(message);
+        setPopupType(type);
+        setIsPopupVisible(true);
+    };
+
+    const closePopup = () => {
+        setIsPopupVisible(false);
+        setPopupMessage('');
     };
 
     const searchTaxis = async () => {
-        // *** Use showErrorPopup for client-side validation ***
+        // *** Use showPopup for client-side validation ***
         if (!startLocation.trim() || !endLocation.trim()) {
-            showErrorPopup("Please enter both start and end locations.");
+            showPopup("Please enter both start and end locations.", 'warning');
             return;
         }
         setIsLoading(true); setHasSearched(true); setTaxis([]);
         try {
             const token = await getToken();
-            // *** Use showErrorPopup for auth error ***
+            // *** Use showPopup for auth error ***
             if (!token) {
-                showErrorPopup("Authentication required. Please log in again.");
+                showPopup("Authentication required. Please log in again.", 'warning');
                 setIsLoading(false);
                 // Consider navigating to Auth screen here if desired:
                 // navigation.navigate('Auth');
@@ -163,21 +156,21 @@ const ViewTaxi: React.FC = () => {
             const endpoint = `api/taxis/search?startLocation=${encodedStart}&endLocation=${encodedEnd}`;
 
             const response = await fetchData(apiUrl, endpoint, {
-                 method: "GET",
-                 headers: { Authorization: `Bearer ${token}` },
+                method: "GET",
+                headers: { Authorization: `Bearer ${token}` },
             });
 
             if (response?.taxis) {
-                 setTaxis(response.taxis);
+                setTaxis(response.taxis);
             } else {
-                 setTaxis([]);
-                 // Optional: Show message if API succeeded but returned no taxis (different from error)
-                 // Could check response status code or a specific flag if API provides one
-                 // For now, handled by the empty list display logic below
+                setTaxis([]);
+                // Optional: Show message if API succeeded but returned no taxis (different from error)
+                // Could check response status code or a specific flag if API provides one
+                // For now, handled by the empty list display logic below
             }
         } catch (error: any) {
             console.error("Error fetching taxis:", error);
-            // *** Use showErrorPopup for API errors, attempt to get specific message ***
+            // *** Use showPopup for API errors, attempt to get specific message ***
             let displayMessage = "An unexpected error occurred while searching for taxis.";
             if (error?.response?.data?.message) {
                 displayMessage = error.response.data.message;
@@ -186,7 +179,7 @@ const ViewTaxi: React.FC = () => {
             } else if (error?.message) { // Fallback to generic error message
                 displayMessage = `Failed to fetch taxis: ${error.message}`;
             }
-            showErrorPopup(displayMessage);
+            showPopup(displayMessage, 'error');
             setTaxis([]); // Ensure taxis list is cleared on error
         }
         finally {
@@ -196,20 +189,20 @@ const ViewTaxi: React.FC = () => {
 
     // Helper to style status text (Keep as is)
     const getStatusStyle = (status: string): TextStyle => {
-         switch (status?.toLowerCase()) {
-            case 'available': return { color: 'green', fontWeight: 'bold' };
-            case 'full': case 'not available': return { color: 'red', fontWeight: 'bold' };
-            case 'almost full': case 'on trip': return { color: 'orange', fontWeight: 'bold' };
-            case 'waiting': case 'roaming': return { color: '#0052A2', fontWeight: 'bold' };
-            default: return {};
-         }
+            switch (status?.toLowerCase()) {
+                case 'available': return { color: 'green', fontWeight: 'bold' };
+                case 'full': case 'not available': return { color: 'red', fontWeight: 'bold' };
+                case 'almost full': case 'on trip': return { color: 'orange', fontWeight: 'bold' };
+                case 'waiting': case 'roaming': return { color: '#0052A2', fontWeight: 'bold' };
+                default: return {};
+            }
     };
 
     // Handler for Monitor Button
     const handleMonitor = async (taxiId: string) => {
-        // *** Use showErrorPopup for missing ID ***
+        // *** Use showPopup for missing ID ***
         if (!taxiId) {
-            showErrorPopup("Cannot monitor taxi, ID is missing.");
+            showPopup("Cannot monitor taxi, ID is missing.", 'warning');
             return;
         }
         try {
@@ -218,8 +211,8 @@ const ViewTaxi: React.FC = () => {
             handleNavigate('Home'); // Use the standard navigate handler
         } catch (e) {
             console.error("Failed to save monitoredTaxiId to AsyncStorage", e);
-            // *** Use showErrorPopup for AsyncStorage error ***
-            showErrorPopup("Could not start monitoring due to a storage error. Please try again.");
+            // *** Use showPopup for AsyncStorage error ***
+            showPopup("Could not start monitoring due to a storage error. Please try again.", 'error');
         }
     };
 
@@ -236,14 +229,14 @@ const ViewTaxi: React.FC = () => {
                  {item.currentLoad !== undefined && ( <InfoRow label="Load" value={item.maxLoad !== undefined ? `${item.currentLoad} / ${item.maxLoad}` : item.currentLoad} iconName="people-outline"/> )}
             </View>
              <View style={styles.taxiCardFooter}>
-                <ActionButton
+                 <ActionButton
                      title="Monitor Live"
                      onPress={() => handleMonitor(item._id)}
                      iconName="eye-outline"
                      style={styles.monitorButton}
                      color="#17a2b8" // Example: Monitor button color
-                />
-             </View>
+                 />
+            </View>
         </View>
     );
 
@@ -259,7 +252,6 @@ const ViewTaxi: React.FC = () => {
             case 'ViewTaxi': break; // Already here
             case 'ViewRoute': navigation.navigate({ name: 'ViewRoute', params: undefined, merge: true }); break;
             case 'ViewRequests': navigation.navigate({ name: 'ViewRequests', params: undefined, merge: true }); break;
-            case 'LiveChat': navigation.navigate({ name: 'LiveChat', params: undefined, merge: true }); break;
             case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;
             case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: undefined, merge: true }); break;
             case 'Profile': navigation.navigate({ name: 'Profile', params: undefined, merge: true }); break;
@@ -267,8 +259,7 @@ const ViewTaxi: React.FC = () => {
             case 'AcceptedPassenger': navigation.navigate({ name: 'AcceptedPassenger', params: undefined, merge: true }); break;
             case 'Auth': navigation.navigate({ name: 'Auth', params: undefined, merge: true }); break;
             default:
-                const exhaustiveCheck: never = screen;
-                console.warn(`Attempted to navigate to unhandled screen: ${exhaustiveCheck}`);
+                console.warn(`Attempted to navigate to unhandled screen: ${screen}`);
                 break;
         }
     };
@@ -306,14 +297,14 @@ const ViewTaxi: React.FC = () => {
                     </ScrollView>
                 </Animated.View>
 
-                {/* *** Render the Error Popup *** */}
+                {/* *** Render the Custom Popup *** */}
                 {/* Place it here so it overlays everything within the SafeAreaView */}
-                <ErrorPopup
-                    visible={isErrorPopupVisible}
-                    message={errorMessage}
-                    onClose={() => setIsErrorPopupVisible(false)}
-                    // Optional: You can pass custom colors if needed
-                    // colors={{ background: '#yourColor', textPrimary: '#anotherColor' }}
+                <CustomPopup
+                    visible={isPopupVisible}
+                    message={popupMessage}
+                    type={popupType}
+                    onClose={closePopup}
+                    // You can add detailedMessage or onRetry if needed for this screen
                 />
             </SafeAreaView>
         </LinearGradient>

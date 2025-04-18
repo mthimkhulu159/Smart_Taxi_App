@@ -4,10 +4,10 @@ import {
     Text,
     StyleSheet,
     ScrollView,
-    Alert,
     TouchableOpacity,
     ActivityIndicator,
     SafeAreaView,
+    Alert,
     Platform,
     Animated,
     ViewStyle,
@@ -21,6 +21,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
 import { apiUrl } from '../api/apiUrl';
+import CustomConfirm from '../components/CustomConfirm'; // Import CustomConfirm
 
 // --- Types and Interfaces ---
 interface TaxiDetails {
@@ -112,11 +113,35 @@ const AcceptedRequestsScreen = () => {
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [isCancelling, setIsCancelling] = useState(false); // *** ADDED: State for cancellation loading ***
     const [sidebarVisible, setSidebarVisible] = useState(false);
+    const [customConfirmVisible, setCustomConfirmVisible] = useState(false);
+    const [customConfirmMessage, setCustomConfirmMessage] = useState('');
+    const [onConfirmAction, setOnConfirmAction] = useState<(() => void) | null>(null);
 
     const navigation = useNavigation<AcceptedRequestScreenNavigationProp>();
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
+
+    const showCustomConfirm = (message: string, onConfirm: () => void) => {
+        console.log('showCustomConfirm called', message, onConfirm);
+        setCustomConfirmMessage(message);
+        setOnConfirmAction(() => onConfirm);
+        setCustomConfirmVisible(true);
+        console.log('customConfirmVisible state:', customConfirmVisible);
+    };
+
+    const hideCustomConfirm = () => {
+        setCustomConfirmVisible(false);
+        setCustomConfirmMessage('');
+        setOnConfirmAction(null);
+    };
+
+    const handleConfirm = () => {
+        if (onConfirmAction) {
+            onConfirmAction();
+        }
+        hideCustomConfirm();
+    };
 
     // Fetching Logic
     const fetchTaxiDetails = async (showAlerts = false) => {
@@ -163,10 +188,10 @@ const AcceptedRequestsScreen = () => {
             }
             // Show error only on manual refresh or if it's a genuine fetch problem (not just 'not found')
              if (showAlerts || !taxiDetails) { // Show alert on manual refresh or if it was already empty
-                 // Avoid generic alerts for 404-like errors if possible, check error details if available
-                 // Example: if (error.status !== 404) { ... }
+                // Avoid generic alerts for 404-like errors if possible, check error details if available
+                // Example: if (error.status !== 404) { ... }
                 Alert.alert('Fetch Error', `Failed to fetch ride details: ${error.message || 'Unknown error'}`);
-             }
+            }
         } finally {
             setIsLoading(false); // Ensure loading is always stopped
         }
@@ -230,57 +255,50 @@ const AcceptedRequestsScreen = () => {
 
     // *** MODIFIED: Implement Cancel Ride Handler for Passenger ***
     const handleCancelRide = (requestId: string) => {
+        console.log('handleCancelRide called', requestId);
         // Prevent action if another action is in progress
         if (isChatLoading || isCancelling) return;
 
-        Alert.alert(
-            'Confirm Cancellation',
+        showCustomConfirm(
             'Are you sure you want to cancel this ride request?',
-            [
-                { text: 'Keep Ride', style: 'cancel', onPress: () => {} },
-                {
-                    text: 'Cancel Ride',
-                    style: 'destructive',
-                    onPress: async () => {
-                        if (!requestId) {
-                            Alert.alert('Error', 'Cannot cancel ride: Request ID is missing.');
-                            return;
-                        }
-                        setIsCancelling(true); // Set loading state
-                        const token = await getToken();
-                        if (!token) {
-                            Alert.alert('Authentication Error', 'Please login.');
-                            setIsCancelling(false);
-                            return;
-                        }
-                        try {
-                            console.log(`Attempting to cancel ride request ID: ${requestId} as passenger...`);
-                            // *** USE THE CORRECT PASSENGER CANCELLATION ENDPOINT ***
-                            const response = await fetchData(apiUrl, `api/riderequests/${requestId}/cancel/passenger`, {
-                                method: 'DELETE', // Use DELETE method as per typical REST practices for cancellation
-                                headers: { Authorization: `Bearer ${token}` },
-                            });
-
-                            // Check for successful response (adjust based on your actual API response)
-                            if (response?.success || response?.message?.includes("cancelled")) { // Check common success patterns
-                                Alert.alert('Success', 'Your ride request has been cancelled.');
-                                // Clear the details from the screen as the ride is gone
-                                setTaxiDetails(null);
-                                // Optional: Navigate away after cancellation
-                                // handleNavigate('Home');
-                            } else {
-                                // Handle potential backend errors or unexpected responses
-                                throw new Error(response?.error || response?.message || 'Failed to cancel ride.');
-                            }
-                        } catch (error: any) {
-                            console.error('Error cancelling ride:', error);
-                            Alert.alert('Cancellation Error', `Could not cancel ride: ${error.message}`);
-                        } finally {
-                            setIsCancelling(false); // Reset loading state regardless of outcome
-                        }
-                    }
+            async () => {
+                if (!requestId) {
+                    Alert.alert('Error', 'Cannot cancel ride: Request ID is missing.');
+                    return;
                 }
-            ]
+                setIsCancelling(true); // Set loading state
+                const token = await getToken();
+                if (!token) {
+                    Alert.alert('Authentication Error', 'Please login.');
+                    setIsCancelling(false);
+                    return;
+                }
+                try {
+                    console.log(`Attempting to cancel ride request ID: ${requestId} as passenger...`);
+                    // *** USE THE CORRECT PASSENGER CANCELLATION ENDPOINT ***
+                    const response = await fetchData(apiUrl, `api/rideRequest/${requestId}/cancel/passenger`, {
+                        method: 'DELETE', // Use DELETE method as per typical REST practices for cancellation
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+
+                    // Check for successful response (adjust based on your actual API response)
+                    if (response?.success || response?.message?.includes("cancelled")) { // Check common success patterns
+                        Alert.alert('Success', 'Your ride request has been cancelled.');
+                        // Clear the details from the screen as the ride is gone
+                        setTaxiDetails(null);
+                        // Optional: Navigate away after cancellation
+                        // handleNavigate('Home');
+                    } else {
+                        // Handle potential backend errors or unexpected responses
+                        throw new Error(response?.error || response?.message || 'Failed to cancel ride.');
+                    }
+                } catch (error: any) {
+                    console.error('Error cancelling ride:', error);
+                    Alert.alert('Cancellation Error', `Could not cancel ride: ${error.message}`);
+                } finally {
+                    setIsCancelling(false); // Reset loading state regardless of outcome
+                }
+            }
         );
     };
 
@@ -301,20 +319,20 @@ const AcceptedRequestsScreen = () => {
         setSidebarVisible(false); // Close sidebar on navigation
         // Standard navigation logic (ensure all needed screens are handled)
         switch (screen) {
-           case 'Home': navigation.navigate({ name: 'Home', params: params, merge: true }); break;
-           case 'requestRide': navigation.navigate({ name: 'requestRide', params: params, merge: true }); break;
-           case 'LiveChat': if (params?.chatSessionId) { navigation.navigate('LiveChat', { chatSessionId: params.chatSessionId }); } else { console.warn("Missing chatSessionId for LiveChat navigation."); } break;
-           case 'AcceptedRequest': break; // Already here, do nothing
-           case 'ViewTaxi': navigation.navigate({ name: 'ViewTaxi', params: undefined, merge: true }); break;
-           case 'ViewRoute': navigation.navigate({ name: 'ViewRoute', params: undefined, merge: true }); break;
-           case 'ViewRequests': navigation.navigate({ name: 'ViewRequests', params: undefined, merge: true }); break;
-           case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;
-           case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: undefined, merge: true }); break;
-           case 'Profile': navigation.navigate({ name: 'Profile', params: undefined, merge: true }); break;
-           case 'AcceptedRequest': navigation.navigate({ name: 'AcceptedRequest', params: undefined, merge: true }); break;
-           case 'AcceptedPassenger': navigation.navigate({ name: 'AcceptedPassenger', params: undefined, merge: true }); break;
-           case 'Auth': navigation.navigate({ name: 'Auth', params: undefined, merge: true }); break;
-           default: console.warn(`Attempted to navigate to unhandled screen: ${screen}`); break;
+            case 'Home': navigation.navigate({ name: 'Home', params: params, merge: true }); break;
+            case 'requestRide': navigation.navigate({ name: 'requestRide', params: params, merge: true }); break;
+            case 'LiveChat': if (params?.chatSessionId) { navigation.navigate('LiveChat', { chatSessionId: params.chatSessionId }); } else { console.warn("Missing chatSessionId for LiveChat navigation."); } break;
+            case 'AcceptedRequest': break; // Already here, do nothing
+            case 'ViewTaxi': navigation.navigate({ name: 'ViewTaxi', params: undefined, merge: true }); break;
+            case 'ViewRoute': navigation.navigate({ name: 'ViewRoute', params: undefined, merge: true }); break;
+            case 'ViewRequests': navigation.navigate({ name: 'ViewRequests', params: undefined, merge: true }); break;
+            case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;
+            case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: undefined, merge: true }); break;
+            case 'Profile': navigation.navigate({ name: 'Profile', params: undefined, merge: true }); break;
+            case 'AcceptedRequest': navigation.navigate({ name: 'AcceptedRequest', params: undefined, merge: true }); break;
+            case 'AcceptedPassenger': navigation.navigate({ name: 'AcceptedPassenger', params: undefined, merge: true }); break;
+            case 'Auth': navigation.navigate({ name: 'Auth', params: undefined, merge: true }); break;
+            default: console.warn(`Attempted to navigate to unhandled screen: ${screen}`); break;
         }
     };
 
@@ -425,16 +443,22 @@ const AcceptedRequestsScreen = () => {
                             <Text style={styles.emptyText}>You don't have an active ride request.</Text>
                             <Text style={styles.emptySubText}>Your accepted ride details will appear here once available.</Text>
                             {/* Optionally add a button to request a new ride */}
-                             <ActionButton
+                           <ActionButton
                                 title="Request a Ride Now"
                                 onPress={() => handleNavigate('requestRide')}
                                 style={{marginTop: 20}}
                                 // Disable if any loading state is active (e.g., initial load failed but user is trying actions)
                                 disabled={isLoading || isChatLoading || isCancelling}
-                             />
+                            />
                         </View>
                     )}
                 </Animated.View>
+                <CustomConfirm
+                    visible={customConfirmVisible}
+                    message={customConfirmMessage}
+                    onCancel={hideCustomConfirm}
+                    onConfirm={handleConfirm}
+                />
             </SafeAreaView>
         </LinearGradient>
     );
