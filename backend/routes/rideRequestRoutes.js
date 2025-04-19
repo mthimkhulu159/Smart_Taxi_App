@@ -9,7 +9,8 @@ router.post("/pickup", rideRequestController.createPickupRequest);
 
 router.post("/ride", rideRequestController.createRideRequest);
 
-router.get("/driver/nearby", rideRequestController.getNearbyRequestsForDriver);
+router.get("/driver/ride-requests", rideRequestController.getNearbyRequestsForDriver);
+router.get("/driver/pickup-requests", rideRequestController.getPickupByDriver);
 router.get("/acceptedTaxiDetails", rideRequestController.getAcceptedTaxiDetails);
 router.get("/acceptedPassengerDetails", rideRequestController.getDriverAcceptedPassengerDetails);
 

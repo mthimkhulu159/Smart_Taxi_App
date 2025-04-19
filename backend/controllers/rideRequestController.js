@@ -158,8 +158,6 @@ exports.acceptRequest = async (req, res) => {
       if (taxi.status !== "roaming") {
         return res.status(400).json({ error: "Taxi is not available for pickup requests." });
       }
-      taxi.status = "on trip"; // Update taxi status
-      await taxi.save();
     } else {
       return res.status(400).json({ error: "Unsupported request type." });
     }
@@ -186,6 +184,7 @@ exports.acceptRequest = async (req, res) => {
     return res.status(500).json({ error: "Server error." });
   }
 };
+
 
 exports.getNearbyRequestsForDriver = async (req, res) => {
   try {
@@ -224,6 +223,7 @@ exports.getNearbyRequestsForDriver = async (req, res) => {
     const rideRequests = await RideRequest.find({
       route: route._id,
       status: "pending",
+      requestType: "ride",
     });
 
     const nearbyRequests = rideRequests.filter((request) => {
@@ -243,6 +243,57 @@ exports.getNearbyRequestsForDriver = async (req, res) => {
     return res.status(500).json({ error: "Server error." });
   }
 };
+
+
+/**
+ * @desc Get pending 'pickup' requests at the driver's current stop if the taxi is roaming.
+ * @route GET /api/rideRequests/driver/pickup-requests
+ * @access Private (Driver)
+ */
+exports.getPickupByDriver = async (req, res) => {
+  try {
+    // 1. Authenticate the driver and get the driver's ID.
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ error: "Unauthorized: Driver not authenticated." });
+    }
+
+    const driverId = req.user._id;
+
+    // 2. Find the taxi associated with the driver.
+    const taxi = await Taxi.findOne({ driverId });
+
+    // 3. Check if the taxi exists and its status is "roaming".
+    if (!taxi) {
+      return res.status(404).json({ error: "Taxi for this driver not found." });
+    }
+
+    if (taxi.status !== 'roaming') {
+        // Inform the driver they need to be in 'roaming' status to see pickup requests
+        return res.status(400).json({ error: "Your taxi must be in 'roaming' status to receive pickup requests." });
+    }
+
+    // 4. Get the taxi's current stop.
+    const driverCurrentStop = taxi.currentStop;
+
+    // 5. Find pending 'pickup' RideRequest documents at the driver's current stop.
+    const pickupRequests = await RideRequest.find({
+      requestType: "pickup", // Filter for pickup requests
+      status: "pending",     // Filter for pending requests
+      startingStop: driverCurrentStop // Filter for requests at the driver's current stop
+    })
+    .populate('passenger', 'name phone'); // Optionally populate passenger details
+
+    // 6. Return the found "pickup" requests.
+    // If no requests are found, pickupRequests will be an empty array, which is a valid response.
+    return res.status(200).json({ pickupRequests });
+
+  } catch (err) {
+    console.error("Error in getPickupByDriver:", err);
+    // Generic server error message for security
+    return res.status(500).json({ error: "Server error while fetching pickup requests." });
+  }
+};
+
 
 exports.getAcceptedTaxiDetails = async (req, res) => {
   try {
