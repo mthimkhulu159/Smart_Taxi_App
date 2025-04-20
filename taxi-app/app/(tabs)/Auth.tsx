@@ -157,7 +157,7 @@ const AuthScreen = () => {
         }
         if (password.length < 6) {
             showErrorPopup("Password must be at least 6 characters long."); return;
-        }
+        } 
 
         setIsLoading(true);
         try {
@@ -217,6 +217,9 @@ const AuthScreen = () => {
             } else if (error?.message === 'Request failed with status code 401') {
                 displayMessage = 'Invalid email or password';
             }
+            else if (error?.message === 'Request failed with status code 429') {
+               displayMessage = 'Too many login attempts from this IP, please try again after an hour.';
+           }
             showErrorPopup(displayMessage);
         } finally {
             setIsLoading(false);

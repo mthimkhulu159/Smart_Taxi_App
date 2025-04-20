@@ -48,6 +48,7 @@ interface UserProfile {
     phone: string;
     role: string[];
     profilePic?: string;
+    roleUpgradeRequested: boolean;
 }
 
 // --- Color Palette (Updated slightly for consistency with ErrorPopup) ---
@@ -307,6 +308,14 @@ const ProfileScreen: React.FC = () => {
     };
     const handleUpgradeRole = async () => {
         closePopup(); // Close any previous popups
+  
+        // *** FIX: Add check if upgrade request is already pending ***
+        if (user?.roleUpgradeRequested) {
+          showPopup('Your request for a driver upgrade is already pending approval.', 'info');
+          return; // Prevent further execution if request is pending
+        }
+        // *** End of FIX ***
+  
         // Validation checks
         if (user?.role?.includes('driver')) {
           showPopup('Your account already has driver privileges.', 'info');
@@ -316,18 +325,18 @@ const ProfileScreen: React.FC = () => {
           showPopup('User data missing. Cannot upgrade role.', 'error');
           return;
         }
-
+  
         setIsUpgrading(true);
-
+  
         try {
           console.log("Attempting role upgrade...");
           const response = await fetchData(apiUrl, 'api/users/upgrade-role', { method: 'PUT' });
           console.log("Role upgrade response received:", response);
-
+  
           // Handle successful submission of the upgrade request
           if (response?.message) {
             showPopup(response.message, 'success'); // e.g., "Your request for an upgrade to driver has been sent for approval"
-            // Optionally, you might want to update the user state to reflect that an upgrade is pending
+            // Update the user state to reflect that an upgrade is pending
             setUser(prevUser => {
               if (prevUser) {
                 return { ...prevUser, roleUpgradeRequested: true };
@@ -344,18 +353,32 @@ const ProfileScreen: React.FC = () => {
           // Handle unexpected error or no message in the success response
           else if (response?.error) {
             console.warn("Role upgrade request failed:", response);
-            showPopup(response.error, 'error', response.error, handleUpgradeRole);
+            // Removed recursive call here as it might contribute to endless loops
+            showPopup(response.error, 'error', response.error);
           }
           // Handle other unexpected scenarios
           else {
             console.warn("Unexpected response format for role upgrade:", response);
-            showPopup('Something went wrong while submitting the upgrade request.', 'error', JSON.stringify(response), handleUpgradeRole);
+             // Removed recursive call here as it might contribute to endless loops
+            showPopup('Something went wrong while submitting the upgrade request.', 'error', JSON.stringify(response));
           }
         } catch (error: any) {
           console.error('Error upgrading role:', error);
           let displayMessage = "Failed to submit upgrade request. Please try again or contact support.";
           let detailedErrorMessage: string | undefined;
-          if (error?.response?.data?.message) {
+  
+          // Improved error handling to check for the specific 400 message from backend
+          if (error?.response?.status === 400 && error?.response?.data?.message === 'Your upgrade request is already pending approval') {
+               displayMessage = 'Your request for a driver upgrade is already pending approval.';
+               detailedErrorMessage = 'Request already pending.';
+               // Optionally update user state here if not already done on initial load
+               setUser(prevUser => {
+                 if (prevUser) {
+                   return { ...prevUser, roleUpgradeRequested: true };
+                 }
+                 return { roleUpgradeRequested: true } as any;
+               });
+          } else if (error?.response?.data?.message) {
             displayMessage = error.response.data.message;
             detailedErrorMessage = JSON.stringify(error.response.data);
           } else if (error?.data?.message) {
@@ -365,12 +388,14 @@ const ProfileScreen: React.FC = () => {
             displayMessage = error.message;
             detailedErrorMessage = error.message;
           }
-          showPopup(displayMessage, 'error', detailedErrorMessage, handleUpgradeRole);
+  
+          // Removed recursive call here as it might contribute to endless loops
+          showPopup(displayMessage, 'error', detailedErrorMessage);
+  
         } finally {
           setIsUpgrading(false);
         }
       };
-
     const handleLogout = () => {
         // Show the custom confirm modal
         setIsLogoutConfirmVisible(true);

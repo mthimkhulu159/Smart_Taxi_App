@@ -14,201 +14,519 @@ import {
     TextStyle,
     Animated,
     Dimensions,
+    // StyleProp, // Not strictly needed for this version
     // ImageStyle,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+// Removed LinearGradient as we're using a solid background
+import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons'; // Keep icons
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
 import { RootStackParamList } from '../types/navigation'; // (ADJUST PATH if needed)
 
+// --- Constants ---
+const COLORS = {
+    // Light Theme Palette
+    background: '#F8F9FA',    // Very light gray
+    cardBackground: '#FFFFFF',    // White
+    cardBorder: '#DEE2E6',    // Light gray border
+    shadow: 'rgba(0, 0, 0, 0.08)', // Soft shadow color
+    textPrimary: '#212529',    // Very dark gray (almost black)
+    textSecondary: '#6C757D',    // Medium gray
+    textPlaceholder: '#ADB5BD',    // Lighter gray for placeholders
+    primary: '#007BFF',    // Standard Blue
+    primaryLight: 'rgba(0, 123, 255, 0.1)', // Light blue for highlights
+    textOnPrimary: '#FFFFFF',    // White text for primary buttons
+    inputBorder: '#CED4DA',    // Gray border for inputs
+    inputFocusBorder: '#80BDFF',    // Lighter blue for focus (optional)
+    positive: '#28A745',    // Green
+    negative: '#DC3545',    // Red
+    headerBackground: '#FFFFFF',
+    headerBorder: '#E9ECEF',
+};
 
-// --- Interfaces & Types ---
+// --- Interfaces & Types (Keep structure, update style names) ---
 interface Row { id: number; numPeople: string; amountPaid: string; }
 interface CalculatedRow extends Row { amountDueForRow: string; changeDueToRow: string; isChangePositive: boolean; }
 interface CalculationResult { rowCalculations: CalculatedRow[]; totalReceived: string; totalChangePassengers: string; }
-interface Styles {
-    gradient: ViewStyle; safeArea: ViewStyle; mainContainer: ViewStyle; header: ViewStyle; headerButton: ViewStyle; headerTitle: TextStyle; scrollContent: ViewStyle; section: ViewStyle; sectionTitle: TextStyle; inputGroup: ViewStyle; label: TextStyle; input: TextStyle; totalDueText: TextStyle; actionButtonBase: ViewStyle; actionButtonIcon: TextStyle; actionButtonText: TextStyle; actionButtonDisabled: ViewStyle; rowContainer: ViewStyle; rowHeader: TextStyle; rowInputGroup: ViewStyle; rowInputItem: ViewStyle; rowCalculation: ViewStyle; calculationText: TextStyle; positiveChange: TextStyle; negativeChange: TextStyle; removeButtonTouchable: ViewStyle; removeButtonText: TextStyle; totalsContainer: ViewStyle; totalText: TextStyle;
-    addRowButtonContainer: ViewStyle; // New style for Add Row button container
-    // Add Sidebar styles from example if Sidebar doesn't manage its own
-    sidebarInternal?: ViewStyle; sidebarCloseButtonInternal?: ViewStyle; sidebarHeaderInternal?: ViewStyle; sidebarLogoIconInternal?: ViewStyle; sidebarTitleInternal?: TextStyle; sidebarButtonInternal?: ViewStyle; sidebarButtonActiveInternal?: ViewStyle; sidebarButtonTextInternal?: TextStyle; sidebarButtonTextActiveInternal?: TextStyle;
+
+// Redefined Styles Interface for Light Theme
+interface ComponentStyles {
+    safeArea: ViewStyle;
+    container: ViewStyle; // Replaces mainContainer for clarity
+    // Header
+    header: ViewStyle;
+    headerButton: ViewStyle;
+    headerTitle: TextStyle;
+    // Content & Cards
+    scrollContent: ViewStyle;
+    card: ViewStyle;
+    cardTitle: TextStyle;
+    // Input Fields
+    inputGroup: ViewStyle;
+    label: TextStyle;
+    input: TextStyle; // TextInput style
+    highlightText: TextStyle; // For Total Due Driver / potentially other highlights
+    // Rows (Payment Section)
+    rowItem: ViewStyle; // Replaces rowContainer/rowCard
+    rowHeader: ViewStyle;
+    rowTitle: TextStyle;
+    removeButton: ViewStyle;
+    rowContent: ViewStyle;
+    rowInputGroup: ViewStyle; // Grouping label + input within a row
+    rowInput: TextStyle; // Style specific to inputs within rows
+    rowCalculation: ViewStyle;
+    calculationText: TextStyle;
+    positiveText: TextStyle; // Replaces positiveChange
+    negativeText: TextStyle; // Replaces negativeChange
+    noRowsText: TextStyle;
+    // Buttons
+    addButton: ViewStyle; // Replaces actionButtonBase/addRowButton
+    addButtonText: TextStyle;
+    // Summary Section
+    summaryCard: ViewStyle; // Specific style if needed, else use 'card'
+    summaryRow: ViewStyle;
+    summaryLabel: TextStyle;
+    summaryValue: TextStyle;
+    summaryIcon: TextStyle; // Still TextStyle for Icon component
+    // Sidebar (Updated for Light Theme)
+    sidebarInternal?: ViewStyle;
+    sidebarCloseButtonInternal?: ViewStyle;
+    sidebarHeaderInternal?: ViewStyle;
+    sidebarLogoIconInternal?: ViewStyle; // Placeholder style if needed
+    sidebarTitleInternal?: TextStyle;
+    sidebarButtonInternal?: ViewStyle;
+    sidebarButtonActiveInternal?: ViewStyle;
+    sidebarButtonTextInternal?: TextStyle;
+    sidebarButtonTextActiveInternal?: TextStyle;
 }
+
 type TaxiFareCalculatorScreenNavigationProp = StackNavigationProp<RootStackParamList, 'TaxiFareCalculator'>; // *** Adjust 'TaxiFareCalculator' if needed ***
 
 // --- Main Component ---
 const TaxiFareCalculator: React.FC = () => {
-    // --- State ---
+    // --- State (Keep Existing Logic) ---
     const [taxiPrice, setTaxiPrice] = useState<string>('');
     const [totalPassengers, setTotalPassengers] = useState<string>('');
     const [rows, setRows] = useState<Row[]>([]);
     const [sidebarVisible, setSidebarVisible] = useState(false);
     const navigation = useNavigation<TaxiFareCalculatorScreenNavigationProp>();
 
-    // --- Animations ---
+    // --- Animations (Keep Existing Logic) ---
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
     useEffect(() => {
-        const timer = setTimeout(() => { Animated.parallel([ Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }), Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }), ]).start(); }, 100);
+        const timer = setTimeout(() => {
+            Animated.parallel([
+                Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }), // Slightly faster
+                Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+            ]).start();
+        }, 100);
         return () => clearTimeout(timer);
     }, [fadeAnim, slideAnim]);
 
-    // --- Handlers ---
-    const handleSetTaxiPrice = (v: string) => { const c=v.replace(/[^0-9.]/g,''); if((c.match(/\./g)||[]).length>1)return; setTaxiPrice(c); };
-    const handleSetTotalPassengers = (v: string) => { const c=v.replace(/[^0-9]/g,''); setTotalPassengers(c); };
+    // --- Handlers (Keep Existing Logic) ---
+    const handleSetTaxiPrice = (v: string) => { const c = v.replace(/[^0-9.]/g, ''); if ((c.match(/\./g) || []).length > 1) return; setTaxiPrice(c); };
+    const handleSetTotalPassengers = (v: string) => { const c = v.replace(/[^0-9]/g, ''); setTotalPassengers(c); };
     const handleAddRow = () => setRows((p) => [...p, { id: Date.now(), numPeople: '', amountPaid: '' }]);
     const handleRemoveRow = (id: number) => setRows((p) => p.filter((r) => r.id !== id));
-    const handleRowChange = (id: number, field: keyof Pick<Row, 'numPeople'|'amountPaid'>, v: string) => { let c=v; if(field==='amountPaid'){c=v.replace(/[^0-9.]/g,''); if((c.match(/\./g)||[]).length>1)return;} else if(field==='numPeople'){c=v.replace(/[^0-9]/g,'');} setRows((p) => p.map((r) => r.id===id ? {...r, [field]: c} : r)); };
+    const handleRowChange = (id: number, field: keyof Pick<Row, 'numPeople' | 'amountPaid'>, v: string) => { let c = v; if (field === 'amountPaid') { c = v.replace(/[^0-9.]/g, ''); if ((c.match(/\./g) || []).length > 1) return; } else if (field === 'numPeople') { c = v.replace(/[^0-9]/g, ''); } setRows((p) => p.map((r) => r.id === id ? { ...r, [field]: c } : r)); };
     const toggleSidebar = () => setSidebarVisible(!sidebarVisible);
-    const handleNavigate = (screen: keyof RootStackParamList) => { setSidebarVisible(false); if (screen === 'TaxiFareCalculator') return; try { navigation.navigate({ name: screen, params: undefined, merge: true } as any); } catch (e) { console.error(`Nav failed: ${screen}`, e); } }; // Simplified nav handler
+    const handleNavigate = (screen: keyof RootStackParamList) => { setSidebarVisible(false); if (screen === 'TaxiFareCalculator') return; try { navigation.navigate({ name: screen, params: undefined, merge: true } as any); } catch (e) { console.error(`Nav failed: ${screen}`, e); } };
 
-    // --- Calculations ---
+    // --- Calculations (Keep Existing Logic) ---
     const parsedTaxiPrice = useMemo(() => parseFloat(taxiPrice) || 0, [taxiPrice]);
     const parsedTotalPassengers = useMemo(() => parseInt(totalPassengers, 10) || 0, [totalPassengers]);
     const totalAmountDueDriver = useMemo(() => parsedTaxiPrice * parsedTotalPassengers, [parsedTaxiPrice, parsedTotalPassengers]);
-    const calculations = useMemo((): CalculationResult => { let totR=0, totC=0; const rowCalcs=rows.map((r)=>{ let nP=parseInt(r.numPeople,10)||0, aP=parseFloat(r.amountPaid)||0, due=0, chg=0; if(nP>0&&parsedTaxiPrice>0){due=nP*parsedTaxiPrice; if(aP>0){chg=aP-due; totR+=aP; if(chg>0){totC+=chg;}}}else if(aP>0){totR+=aP; chg=aP; totC+=chg;} return {...r, amountDueForRow:due.toFixed(2), changeDueToRow:chg.toFixed(2), isChangePositive:chg>=0}; }); return { rowCalculations:rowCalcs, totalReceived:totR.toFixed(2), totalChangePassengers:totC.toFixed(2) }; }, [rows, parsedTaxiPrice]);
+    const calculations = useMemo((): CalculationResult => {
+        let totR = 0, totC = 0;
+        const rowCalcs = rows.map((r) => {
+            let nP = parseInt(r.numPeople, 10) || 0, aP = parseFloat(r.amountPaid) || 0, due = 0, chg = 0;
+            if (nP > 0 && parsedTaxiPrice > 0) {
+                due = nP * parsedTaxiPrice;
+                if (aP > 0) {
+                    chg = aP - due;
+                    totR += aP; if (chg > 0) { totC += chg; }
+                }
+            } else if (aP > 0) { totR += aP; chg = aP; totC += chg; }
+            return { ...r, amountDueForRow: due.toFixed(2), changeDueToRow: chg.toFixed(2), isChangePositive: chg >= 0 };
+        });
+        return { rowCalculations: rowCalcs, totalReceived: totR.toFixed(2), totalChangePassengers: totC.toFixed(2) };
+    }, [rows, parsedTaxiPrice]);
 
     // --- Render ---
     return (
-        <LinearGradient colors={['#FFFFFF', '#E8F0FE']} style={styles.gradient}>
-            <SafeAreaView style={styles.safeArea}>
-                <Sidebar isVisible={sidebarVisible} onClose={toggleSidebar} onNavigate={handleNavigate} activeScreen="TaxiFareCalculator"/>
-                <Animated.View style={[styles.mainContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-                    {/* Header */}
-                    <View style={styles.header}>
-                        <TouchableOpacity style={styles.headerButton} onPress={toggleSidebar}>
-                            <Ionicons name="menu" size={32} color="#003E7E" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>Fare Calculator</Text>
-                        <View style={styles.headerButton} />
-                    </View>
-                    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-                        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} >
-                            {/* Section 1: Basic Info */}
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Taxi Details</Text>
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Taxi Price (per person): R</Text>
-                                    <TextInput style={styles.input} value={taxiPrice} onChangeText={handleSetTaxiPrice} keyboardType="numeric" placeholder="e.g., 15.00" placeholderTextColor="#aaa" />
-                                </View>
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Total Number of Passengers:</Text>
-                                    <TextInput style={styles.input} value={totalPassengers} onChangeText={handleSetTotalPassengers} keyboardType="numeric" placeholder="e.g., 10" placeholderTextColor="#aaa" />
-                                </View>
-                                {parsedTaxiPrice > 0 && parsedTotalPassengers > 0 && (<Text style={styles.totalDueText}>Total Amount Due to Driver: R{totalAmountDueDriver.toFixed(2)}</Text>)}
+        // Use SafeAreaView as the main background container
+        <SafeAreaView style={styles.safeArea}>
+            <Sidebar
+                isVisible={sidebarVisible}
+                onClose={toggleSidebar}
+                onNavigate={handleNavigate}
+                activeScreen="TaxiFareCalculator"
+                // Pass light theme styles if Sidebar accepts them via props
+                // Or rely on the internal styles defined below matching the theme
+            />
+
+            <Animated.View style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity style={styles.headerButton} onPress={toggleSidebar}>
+                        <Ionicons name="menu" size={28} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Fare Calculator</Text>
+                    <View style={styles.headerButton} />{/* Placeholder */}
+                </View>
+
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+                    <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+                        {/* Card 1: Setup */}
+                        <View style={styles.card}>
+                            <Text style={styles.cardTitle}>Trip Details</Text>
+
+                            {/* Price Input */}
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Price per Person (R)</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={taxiPrice}
+                                    onChangeText={handleSetTaxiPrice}
+                                    keyboardType="numeric"
+                                    placeholder="Enter amount"
+                                    placeholderTextColor={COLORS.textPlaceholder}
+                                    selectionColor={COLORS.primary}
+                                />
                             </View>
-                            {/* Section 2: Passenger Rows */}
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Passenger Payments</Text>
-                                {calculations.rowCalculations.length === 0 && (<Text style={{ color: '#666', textAlign: 'center', fontStyle: 'italic', marginBottom: 20}}> Press "+ Add Row" below to record payments.</Text>)}
-                                {calculations.rowCalculations.map((row, index) => (
-                                    <View key={row.id} style={styles.rowContainer}>
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                                            <Text style={styles.rowHeader}>Row {index + 1}</Text>
-                                            <TouchableOpacity style={styles.removeButtonTouchable} onPress={() => handleRemoveRow(row.id)}>
-                                                <Ionicons name="trash-outline" size={22} color="#dc3545" />
-                                            </TouchableOpacity>
+
+                            {/* Passengers Input */}
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Total Passengers</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={totalPassengers}
+                                    onChangeText={handleSetTotalPassengers}
+                                    keyboardType="numeric"
+                                    placeholder="Enter number"
+                                    placeholderTextColor={COLORS.textPlaceholder}
+                                    selectionColor={COLORS.primary}
+                                />
+                            </View>
+
+                            {/* Total Due Display */}
+                            {totalAmountDueDriver > 0 && (
+                                <Text style={styles.highlightText}>
+                                    Total Due to Driver: R {totalAmountDueDriver.toFixed(2)}
+                                </Text>
+                            )}
+                        </View>
+
+                        {/* Card 2: Passenger Payments */}
+                        <View style={styles.card}>
+                            <Text style={styles.cardTitle}>Payments Received</Text>
+
+                            {calculations.rowCalculations.length === 0 && (
+                                <Text style={styles.noRowsText}>
+                                    No payments recorded yet. Add rows below.
+                                </Text>
+                            )}
+
+                            {calculations.rowCalculations.map((row, index) => (
+                                <View key={row.id} style={styles.rowItem}>
+                                    <View style={styles.rowHeader}>
+                                        <Text style={styles.rowTitle}>Row {index + 1}</Text>
+                                        <TouchableOpacity style={styles.removeButton} onPress={() => handleRemoveRow(row.id)}>
+                                            <Feather name="x" size={20} color={COLORS.negative} />
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={styles.rowContent}>
+                                        <View style={styles.rowInputGroup}>
+                                            <Text style={styles.label}>People</Text>
+                                            <TextInput
+                                                style={styles.rowInput}
+                                                value={row.numPeople}
+                                                onChangeText={(v) => handleRowChange(row.id, 'numPeople', v)}
+                                                keyboardType="numeric"
+                                                placeholder="0"
+                                                placeholderTextColor={COLORS.textPlaceholder}
+                                                selectionColor={COLORS.primary}
+                                            />
                                         </View>
                                         <View style={styles.rowInputGroup}>
-                                            <View style={styles.rowInputItem}>
-                                                <Text style={styles.label}>People:</Text>
-                                                <TextInput style={styles.input} value={row.numPeople} onChangeText={(v) => handleRowChange(row.id, 'numPeople', v)} keyboardType="numeric" placeholder="e.g., 4" placeholderTextColor="#aaa" />
-                                            </View>
-                                            <View style={styles.rowInputItem}>
-                                                <Text style={styles.label}>Amount Paid (R):</Text>
-                                                <TextInput style={styles.input} value={row.amountPaid} onChangeText={(v) => handleRowChange(row.id, 'amountPaid', v)} keyboardType="numeric" placeholder="e.g., 100.00" placeholderTextColor="#aaa" />
-                                            </View>
-                                        </View>
-                                        <View style={styles.rowCalculation}>
-                                            <Text style={styles.calculationText}>Amount Due: R{row.amountDueForRow}</Text>
-                                            {/* Ensure space is inside the template literal */}
-                                            <Text style={row.isChangePositive ? styles.positiveChange : styles.negativeChange}>
-                                                {` Change: R${row.changeDueToRow}`}
-                                            </Text>
+                                            <Text style={styles.label}>Paid (R)</Text>
+                                            <TextInput
+                                                style={styles.rowInput}
+                                                value={row.amountPaid}
+                                                onChangeText={(v) => handleRowChange(row.id, 'amountPaid', v)}
+                                                keyboardType="numeric"
+                                                placeholder="0.00"
+                                                placeholderTextColor={COLORS.textPlaceholder}
+                                                selectionColor={COLORS.primary}
+                                            />
                                         </View>
                                     </View>
-                                ))}
-                                {/* Add Row Button Moved Here */}
-                                <View style={styles.addRowButtonContainer}>
-                                    <TouchableOpacity
-                                        style={[styles.actionButtonBase, { backgroundColor: '#005A9C', paddingVertical: 12, paddingHorizontal: 20 }]}
-                                        onPress={handleAddRow}
-                                    >
-                                        <Ionicons name="add" size={20} color="#FFFFFF" style={styles.actionButtonIcon} />
-                                        <Text style={[styles.actionButtonText, { fontSize: 16 }]}>Add Row</Text>
-                                    </TouchableOpacity>
+                                    {/* Row Calculations - Conditionally Render */}
+                                    {(parseInt(row.numPeople, 10) > 0 || parseFloat(row.amountPaid) > 0) && (
+                                      <View style={styles.rowCalculation}>
+                                        <Text style={styles.calculationText}>Due: R {row.amountDueForRow}</Text>
+                                        <Text style={[styles.calculationText, row.isChangePositive ? styles.positiveText : styles.negativeText]}>
+                                            Change: R {row.changeDueToRow}
+                                        </Text>
+                                      </View>
+                                    )}
+                                </View>
+                            ))}
+
+                            {/* Add Row Button */}
+                            <TouchableOpacity style={styles.addButton} onPress={handleAddRow}>
+                                <Feather name="plus" size={18} color={COLORS.textOnPrimary} style={{ marginRight: 8 }} />
+                                <Text style={styles.addButtonText}>Add New Row</Text>
+                            </TouchableOpacity>
+                        </View>
+
+
+                        {/* Card 3: Summary */}
+                        {rows.length > 0 && (
+                            <View style={[styles.card, styles.summaryCard]}>
+                                <Text style={styles.cardTitle}>Trip Summary</Text>
+                                {/* Total Received */}
+                                <View style={styles.summaryRow}>
+                                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                        <Feather name="dollar-sign" size={18} color={COLORS.textSecondary} style={styles.summaryIcon} />
+                                        <Text style={styles.summaryLabel}>Total Received:</Text>
+                                    </View>
+                                    <Text style={styles.summaryValue}>R {calculations.totalReceived}</Text>
+                                </View>
+                                {/* Total Change Due */}
+                                <View style={styles.summaryRow}>
+                                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                        <Feather name="corner-down-left" size={18} color={COLORS.positive} style={styles.summaryIcon} />
+                                        <Text style={styles.summaryLabel}>Total Change Due:</Text>
+                                    </View>
+                                    <Text style={[styles.summaryValue, {color: COLORS.positive}]}>R {calculations.totalChangePassengers}</Text>
                                 </View>
                             </View>
-                            {/* Section 3: Totals */}
-                            {rows.length > 0 && (
-                                <View style={[styles.section, styles.totalsContainer]}>
-                                    <Text style={styles.sectionTitle}>Summary</Text>
-                                    {/* --- FIX AREA START --- */}
-                                    {/* Use template literals to ensure space is part of the text node */}
-                                    <Text style={styles.totalText}>
-                                        <MaterialCommunityIcons name="cash-multiple" size={20} color="#003E7E" />
-                                        {` Total Received: R${calculations.totalReceived}`}
-                                    </Text>
-                                    <Text style={styles.totalText}>
-                                        <MaterialCommunityIcons name="cash-refund" size={20} color="green" />
-                                        {` Total Change Due: R${calculations.totalChangePassengers}`}
-                                    </Text>
-                                    {/* --- FIX AREA END --- */}
-                                </View>
-                            )}
-                        </ScrollView>
-                    </TouchableWithoutFeedback>
-                </Animated.View>
-            </SafeAreaView>
-        </LinearGradient>
+                        )}
+
+                    </ScrollView>
+                </TouchableWithoutFeedback>
+            </Animated.View>
+        </SafeAreaView>
     );
 };
 
-// --- Styles (remain mostly the same, with a new style for the Add Row button container) ---
-const styles = StyleSheet.create<Styles>({
-    gradient: { flex: 1 },
-    safeArea: { flex: 1, backgroundColor: 'transparent' },
-    mainContainer: { flex: 1, },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingTop: Platform.OS === 'android' ? 15 : 10, paddingBottom: 10, width: '100%', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-    headerButton: { padding: 8, minWidth: 40, alignItems: 'center' },
-    headerTitle: { fontSize: 20, fontWeight: '600', color: '#000000' },
-    scrollContent: { paddingHorizontal: 15, paddingBottom: 40, paddingTop: 10 },
-    section: { marginBottom: 25, backgroundColor: 'rgba(255, 255, 255, 0.7)', padding: 15, borderRadius: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
-    sectionTitle: { fontSize: 18, fontWeight: '600', color: '#003E7E', marginBottom: 15 },
-    inputGroup: { marginBottom: 15 },
-    label: { fontSize: 14, marginBottom: 6, color: '#333', fontWeight: '500' },
-    input: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D0D0D0', borderRadius: 8, paddingHorizontal: 15, paddingVertical: Platform.OS === 'ios' ? 14 : 10, fontSize: 16, color: '#000000', elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 1 },
-    totalDueText: { fontSize: 16, fontWeight: 'bold', marginTop: 10, textAlign: 'center', color: '#2a9d8f', paddingVertical: 8, backgroundColor: '#e8f7f5', borderRadius: 6 },
-    actionButtonBase: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2 },
-    actionButtonIcon: { marginRight: 8 },
-    actionButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF'},
-    actionButtonDisabled: { backgroundColor: '#A0A0A0', elevation: 0, shadowOpacity: 0 },
-    rowContainer: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 10, padding: 15, marginBottom: 15, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 2 },
-    rowHeader: { fontSize: 16, fontWeight: '600', color: '#444' },
-    rowInputGroup: { flexDirection: 'row', marginBottom: 10 },
-    rowInputItem: { flex: 1, marginHorizontal: 5 },
-    rowCalculation: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f0f0f0', flexDirection: 'row', justifyContent: 'space-between' },
-    calculationText: { fontSize: 14, color: '#555' },
-    positiveChange: { fontSize: 14, color: 'green', fontWeight: 'bold' },
-    negativeChange: { fontSize: 14, color: 'red', fontWeight: 'bold' },
-    removeButtonTouchable: { padding: 5, marginRight: -5 },
-    removeButtonText: { color: '#dc3545', fontSize: 14, fontWeight: '500' },
-    totalsContainer: { marginTop: 10 },
-    totalText: { fontSize: 16, fontWeight: '600', marginBottom: 12, color: '#333', flexDirection: 'row', alignItems: 'center' },
-    addRowButtonContainer: { // New style to center the Add Row button
-        paddingVertical: 15,
-        alignItems: 'center',
+// --- Styles ---
+const styles = StyleSheet.create<ComponentStyles>({
+    safeArea: {
+        flex: 1,
+        backgroundColor: COLORS.background, // Apply background color here
     },
-    // Sidebar Styles (Remove if Sidebar component handles its own styles)
-    sidebarInternal: { position: 'absolute', top: 0, left: 0, bottom: 0, width: 300, backgroundColor: '#003E7E', zIndex: 1000, elevation: 10, shadowColor: '#000', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.3, shadowRadius: 5, paddingTop: Platform.OS === 'ios' ? 20 : 0 },
+    container: {
+        flex: 1,
+        // Removed background color from here
+    },
+    // Header
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 15,
+        paddingTop: Platform.OS === 'android' ? 15 : 10,
+        paddingBottom: 12,
+        backgroundColor: COLORS.headerBackground,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.headerBorder,
+    },
+    headerButton: { padding: 5, minWidth: 40, alignItems: 'center' }, // Adjusted padding
+    headerTitle: { fontSize: 18, fontWeight: '600', color: COLORS.textPrimary }, // Slightly smaller
+    // Content & Cards
+    scrollContent: {
+        padding: 15, // Consistent padding
+        paddingBottom: 40,
+    },
+    card: {
+        backgroundColor: COLORS.cardBackground,
+        borderRadius: 10, // Slightly less rounded
+        padding: 18,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: COLORS.cardBorder,
+        shadowColor: COLORS.shadow,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.7, // Use opacity from constant
+        shadowRadius: 4,
+        elevation: 3, // For Android
+    },
+    cardTitle: {
+        fontSize: 17, // Adjusted size
+        fontWeight: 'bold',
+        color: COLORS.textPrimary,
+        marginBottom: 18,
+        paddingBottom: 5,
+        // borderBottomWidth: 1, // Optional: Add separator back
+        // borderBottomColor: COLORS.headerBorder,
+    },
+    // Input Fields
+    inputGroup: {
+        marginBottom: 18,
+    },
+    label: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        marginBottom: 8,
+        fontWeight: '500',
+    },
+    input: {
+        backgroundColor: COLORS.cardBackground, // Match card background or make slightly off
+        borderBottomWidth: 1, // Underline style
+        borderColor: COLORS.inputBorder,
+        borderRadius: 0, // Remove radius for underline style
+        paddingHorizontal: 5, // Adjust padding for underline
+        paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+        fontSize: 16,
+        color: COLORS.textPrimary,
+    },
+    highlightText: { // For Total Due Driver
+        fontSize: 16,
+        fontWeight: '600',
+        marginTop: 15,
+        textAlign: 'center',
+        color: COLORS.primary,
+        paddingVertical: 10,
+        backgroundColor: COLORS.primaryLight, // Use light primary color
+        borderRadius: 6,
+    },
+    // Rows (Payment Section)
+    rowItem: {
+        backgroundColor: 'transparent', // Rows blend into card
+        borderBottomWidth: 1,
+        borderColor: COLORS.headerBorder, // Use light border for separation
+        paddingVertical: 15,
+        marginBottom: 10, // Space below each row before button
+    },
+    rowHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    rowTitle: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: COLORS.textSecondary,
+    },
+    removeButton: {
+        padding: 5,
+        // backgroundColor: 'rgba(220, 53, 69, 0.1)', // Optional subtle background
+        borderRadius: 15,
+    },
+    rowContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        // alignItems: 'flex-end', // Align input groups at bottom if needed
+    },
+    rowInputGroup: {
+        flex: 1, // Each group takes half the space
+        marginHorizontal: 8, // Space between input groups
+        // No marginBottom needed here if aligned at bottom
+    },
+    rowInput: { // Specific style for inputs inside rows
+        // Inherits from 'input', but can override
+        fontSize: 15,
+        paddingVertical: Platform.OS === 'ios' ? 10 : 8, // Slightly smaller padding
+    },
+    rowCalculation: {
+        marginTop: 12,
+        paddingTop: 10,
+        // borderTopWidth: 1, // Removed top border, rely on row bottom border
+        // borderTopColor: COLORS.headerBorder,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    calculationText: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+    },
+    positiveText: {
+        color: COLORS.positive,
+        fontWeight: '500',
+    },
+    negativeText: {
+        color: COLORS.negative,
+        fontWeight: '500',
+    },
+    noRowsText: {
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        fontStyle: 'italic',
+        paddingVertical: 15,
+        marginBottom: 15,
+    },
+    // Buttons
+    addButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12, // Slightly smaller button
+        paddingHorizontal: 20,
+        borderRadius: 8,
+        backgroundColor: COLORS.primary, // Use primary color
+        marginTop: 10, // Space above button
+        elevation: 2,
+        shadowColor: COLORS.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+    },
+    addButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: COLORS.textOnPrimary,
+    },
+    // Summary Section
+    summaryCard: {
+        marginTop: 10, // Add space if needed above summary
+         // Can add specific border/background if needed
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12, // Consistent vertical padding
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.headerBorder, // Use light separator
+        // Remove border for the last item if desired (using :last-child pseudo-selector isn't straightforward in RN StyleSheet)
+    },
+    summaryLabel: {
+        fontSize: 15,
+        color: COLORS.textSecondary,
+    },
+    summaryValue: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    summaryIcon: {
+        marginRight: 10, // Space between icon and label
+    },
+    // Sidebar Styles (Light Theme)
+    sidebarInternal: {
+        position: 'absolute', top: 0, left: 0, bottom: 0, width: 300,
+        backgroundColor: COLORS.headerBackground, // White background
+        zIndex: 1000, elevation: 10, shadowColor: '#000', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.2, shadowRadius: 5,
+        paddingTop: Platform.OS === 'ios' ? 20 : 0,
+        borderRightWidth: 1, // Add border to separate from content
+        borderRightColor: COLORS.headerBorder,
+    },
     sidebarCloseButtonInternal: { position: 'absolute', top: Platform.OS === 'android' ? 45 : 55, right: 15, zIndex: 1010, padding: 5 },
     sidebarHeaderInternal: { alignItems: 'center', marginBottom: 30, paddingTop: 60 },
-    sidebarLogoIconInternal: { marginBottom: 10 },
-    sidebarTitleInternal: { fontSize: 26, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
+    sidebarLogoIconInternal: { marginBottom: 10 }, // Style if you add a logo
+    sidebarTitleInternal: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary, textAlign: 'center' }, // Dark text
     sidebarButtonInternal: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 20, borderRadius: 8, marginBottom: 8, marginHorizontal: 10 },
-    sidebarButtonActiveInternal: { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
-    sidebarButtonTextInternal: { fontSize: 16, marginLeft: 15, color: '#E0EFFF', fontWeight: '600' },
-    sidebarButtonTextActiveInternal: { color: '#FFFFFF', fontWeight: 'bold' },
+    sidebarButtonActiveInternal: {
+        backgroundColor: COLORS.primaryLight, // Light blue highlight
+    },
+    sidebarButtonTextInternal: { fontSize: 16, marginLeft: 15, color: COLORS.textSecondary, fontWeight: '500' }, // Darker text
+    sidebarButtonTextActiveInternal: { color: COLORS.primary, fontWeight: 'bold' }, // Primary color for active text
 });
 
 export default TaxiFareCalculator;
