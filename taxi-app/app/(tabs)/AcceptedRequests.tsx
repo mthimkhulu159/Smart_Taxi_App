@@ -323,7 +323,14 @@ const AcceptedRequestsScreen = () => {
             case 'requestRide': navigation.navigate({ name: 'requestRide', params: params, merge: true }); break;
             case 'LiveChat': if (params?.chatSessionId) { navigation.navigate('LiveChat', { chatSessionId: params.chatSessionId }); } else { console.warn("Missing chatSessionId"); } break;
             case 'AcceptedRequest': break; // Already here
-            // Add other cases from original code if needed
+            case 'ViewTaxi': navigation.navigate({ name: 'ViewTaxi', params: params, merge: true }); break;
+            case 'ViewRoute': navigation.navigate({ name: 'ViewRoute', params: params, merge: true }); break;
+            case 'ViewRequests': navigation.navigate({ name: 'ViewRequests', params: params, merge: true }); break;
+            case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;
+            case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: params, merge: true }); break;
+            case 'Profile': navigation.navigate({ name: 'Profile', params: params, merge: true }); break;
+            case 'AcceptedPassenger': navigation.navigate({ name: 'AcceptedPassenger', params: params, merge: true }); break;
+            case 'Auth': navigation.navigate({ name: 'Auth', params: params, merge: true }); break; 
             default: console.warn(`Unhandled navigation to: ${screen}`); break;
         }
     };

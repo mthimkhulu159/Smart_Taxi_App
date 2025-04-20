@@ -35,7 +35,7 @@ const rideRequestSchema = new mongoose.Schema(
     // Current status of the request.
     status: {
       type: String,
-      enum: ["pending", "acacepted", "cancelled", "completed"],
+      enum: ["pending", "accepted", "cancelled", "completed"],
       default: "pending",
     },
     // The taxi assigned to this request (if any).

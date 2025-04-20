@@ -151,7 +151,7 @@ exports.acceptRequest = async (req, res) => {
         return res.status(400).json({ error: "Invalid route stops data." });
       }
 
-      if (taxiStop.order >= passengerStop.order) {
+      if (taxiStop.order > passengerStop.order) {
         return res.status(400).json({ error: "Taxi has already passed the passenger's starting stop." });
       }
     } else if (rideRequest.requestType === "pickup") {
@@ -184,7 +184,6 @@ exports.acceptRequest = async (req, res) => {
     return res.status(500).json({ error: "Server error." });
   }
 };
-
 
 exports.getNearbyRequestsForDriver = async (req, res) => {
   try {
@@ -220,10 +219,15 @@ exports.getNearbyRequestsForDriver = async (req, res) => {
     const currentOrder = taxiCurrentStopObj.order;
     const nextOrder = currentOrder + 1;
 
+    // Check if the taxi status is "available" or "on trip" before proceeding
+    if (!["available", "on trip"].includes(taxi.status)) {
+      return res.status(400).json({ error: "Taxi must be 'available' or 'on trip' to view ride requests." });
+    }
+
     const rideRequests = await RideRequest.find({
       route: route._id,
-      status: "pending",
-      requestType: "ride",
+      status: "pending", // Only show pending requests
+      requestType: "ride", // Only ride requests
     });
 
     const nearbyRequests = rideRequests.filter((request) => {
@@ -245,11 +249,6 @@ exports.getNearbyRequestsForDriver = async (req, res) => {
 };
 
 
-/**
- * @desc Get pending 'pickup' requests at the driver's current stop if the taxi is roaming.
- * @route GET /api/rideRequests/driver/pickup-requests
- * @access Private (Driver)
- */
 exports.getPickupByDriver = async (req, res) => {
   try {
     // 1. Authenticate the driver and get the driver's ID.

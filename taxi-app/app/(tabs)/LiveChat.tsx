@@ -11,43 +11,46 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
-  Appearance, // Import Appearance
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome } from '@expo/vector-icons'; // Using FontAwesome for icons
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { getToken, fetchData } from '../api/api'; // Assuming these are correctly set up
 import { Manager, Socket } from 'socket.io-client';
 import { apiUrl } from '../api/apiUrl';
-
-// --- Interfaces (Keep as is) ---
+// Interface for the message structure
 interface Message {
   _id: string;
   sender: {
     _id: string;
     name: string;
-    email?: string; // Optional email
+    email: string; // Keep email if needed, otherwise can remove
   };
   content: string;
-  createdAt: string;
+  createdAt: string; // ISO string format expected
 }
 
+// Interface for user details fetched from the API
 interface UserDetails {
   id: string;
+  // Add other relevant user details if needed
 }
 
-// --- Helper Functions (Keep as is, including getUserDetails) ---
+// Function to fetch current user details
 const getUserDetails = async (apiUrl: string): Promise<UserDetails | null> => {
   const token = await getToken();
   if (!token) {
     console.error('Authentication token not found.');
     return null;
   }
+
   try {
+    // Corrected: Removed generic type argument, added 'as' assertion
     const response = await fetchData(apiUrl, 'api/users/get-user', {
       method: 'GET',
       headers: { Authorization: `Bearer ${token}` },
-    }) as { user: UserDetails };
+    }) as { user: UserDetails }; // Assert the expected shape
+
     if (response && response.user && response.user.id) {
       return response.user;
     } else {
@@ -61,7 +64,6 @@ const getUserDetails = async (apiUrl: string): Promise<UserDetails | null> => {
   }
 };
 
-// --- LiveChatScreen Component ---
 const LiveChatScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -70,13 +72,14 @@ const LiveChatScreen = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const socketRef = useRef<Socket | null>(null);
-  const flatListRef = useRef<FlatList<Message>>(null);
-  // Optional: Add theme state if you want dynamic light/dark mode beyond initial detection
-  // const [colorScheme, setColorScheme] = useState(Appearance.getColorScheme());
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null); // Store current user ID
+  const socketRef = useRef<Socket | null>(null); // Use specific Socket type
+  const flatListRef = useRef<FlatList<Message>>(null); // Ref for FlatList
 
-  // --- Effects (Keep core logic, slightly optimized cleanup) ---
+  
+  // --- Effects ---
+
+  // Initial setup: Fetch user details, messages, and set up socket
   useEffect(() => {
     const initializeChat = async () => {
       setLoading(true);
@@ -84,12 +87,14 @@ const LiveChatScreen = () => {
       if (!user) {
         Alert.alert('Authentication Error', 'Could not verify user. Please login again.');
         setLoading(false);
-        navigation.goBack();
+        navigation.goBack(); // Go back if user details fail
         return;
       }
-      setCurrentUserId(user.id);
-      await fetchChatMessages(user.id);
-      setupSocket(user.id);
+      setCurrentUserId(user.id); // Set current user ID state
+
+      await fetchChatMessages(user.id); // Fetch initial messages
+      setupSocket(user.id); // Setup socket connection *after* getting user ID
+
       setLoading(false);
     };
 
@@ -97,184 +102,219 @@ const LiveChatScreen = () => {
 
     // Cleanup on unmount
     return () => {
-      if (socketRef.current?.connected) {
+      if (socketRef.current) {
         console.log('Disconnecting socket...');
         socketRef.current.disconnect();
+        socketRef.current = null; // Clear the ref
       }
-      socketRef.current = null; // Ensure ref is cleared
     };
-  }, [chatSessionId]); // Dependency array remains correct
+  }, [chatSessionId]); // Rerun if chatSessionId changes
 
-  // Optional: Add effect to listen for theme changes
-  // useEffect(() => {
-  //   const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-  //     setColorScheme(colorScheme);
-  //   });
-  //   return () => subscription.remove();
-  // }, []);
+  // --- API and Socket Functions ---
 
-  // --- API and Socket Functions (Keep core logic) ---
+  // Fetch historical chat messages
   const fetchChatMessages = async (userId: string) => {
-    // setLoading(true); // Handled in initializeChat
+    // No need to set loading here, handled in initializeChat
     const token = await getToken();
     if (!token) {
       Alert.alert('Authentication Error', 'Session expired. Please login.');
-      setLoading(false); // Stop loading if token fails here
+      // Handle re-authentication or redirect
       return;
     }
+
     try {
+       // Corrected: Removed generic type argument, added 'as' assertion
       const fetchedMessages = await fetchData(apiUrl, `api/chat/${chatSessionId}/messages`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
-      }) as Message[];
+      }) as Message[]; // Assert the expected shape (array of Message)
 
-      if (Array.isArray(fetchedMessages)) {
-        setMessages(fetchedMessages.slice().reverse()); // Use slice() to avoid modifying original if needed elsewhere
+      if (fetchedMessages) {
+        // Reverse messages for inverted FlatList display (newest at the bottom)
+        // Ensure fetchedMessages is actually an array before reversing
+        if (Array.isArray(fetchedMessages)) {
+            setMessages(fetchedMessages.reverse());
+        } else {
+            console.error('Fetched messages is not an array:', fetchedMessages);
+            setMessages([]); // Set to empty array if data is invalid
+        }
       } else {
-        console.error('Fetched messages is not an array:', fetchedMessages);
-        setMessages([]);
+        Alert.alert('Error', 'Failed to fetch chat messages.');
+        setMessages([]); // Set to empty array on failure
       }
     } catch (error) {
       console.error('Error fetching chat messages:', error);
       Alert.alert('Error', 'An error occurred while fetching messages.');
-      setMessages([]);
+      setMessages([]); // Set to empty array on error
     }
-    // setLoading(false); // Handled in initializeChat
+    // No finally setLoading(false) here, handled in initializeChat
   };
 
+  // Setup Socket.IO connection
   const setupSocket = async (userId: string) => {
-    const token = await getToken();
+    const token = await getToken(); // Get token again for socket connection
     if (!token) {
       Alert.alert('Authentication Error', 'Cannot establish real-time connection. Please login.');
       return;
     }
+
+    // Disconnect existing socket if any before creating a new one
     if (socketRef.current) {
-      socketRef.current.disconnect();
+        socketRef.current.disconnect();
     }
+
     console.log('Setting up socket connection...');
     const manager = new Manager(apiUrl, {
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000, // Slightly increased delay
+      reconnectionAttempts: 5, // Optional: Limit reconnection attempts
+      reconnectionDelay: 1000, // Optional: Delay between attempts
       extraHeaders: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${token}`, // Send token for initial connection auth if backend needs it
       },
-      transports: ['websocket'], // Prioritize WebSocket
     });
-    socketRef.current = manager.socket('/');
+
+    socketRef.current = manager.socket('/'); // Connect to the default namespace
 
     socketRef.current.on('connect', () => {
-      console.log(`Socket connected: ${socketRef.current?.id}`);
+      console.log(`Socket connected with ID: ${socketRef.current?.id}`);
+      // Emit authentication event with user ID *after* connection is established
+      // Ensure your backend expects 'authenticate' with the user ID
       socketRef.current?.emit('authenticate', userId);
       console.log(`Emitted authenticate for user ID: ${userId}`);
+
+      // Join the specific chat room
       socketRef.current?.emit('joinChatRoom', chatSessionId);
       console.log(`Attempted to join chat room: ${chatSessionId}`);
     });
 
+    // Listen for new messages
     socketRef.current.on('receiveMessage', (message: Message) => {
       console.log('Received message via socket:', message);
-      // Add new message to the start for inverted list
+      // Add new message to the beginning of the array for inverted FlatList
       setMessages((prevMessages) => [message, ...prevMessages]);
-      // Consider scrollToOffset instead of scrollToEnd for inverted list
-      // flatListRef.current?.scrollToOffset({ animated: true, offset: 0 });
     });
 
     socketRef.current.on('disconnect', (reason) => {
       console.log('Socket disconnected:', reason);
-      // Optional: Display a subtle banner indicating disconnection
+      // Optionally handle reconnection logic or inform user
     });
 
-    socketRef.current.on('connect_error', (err: Error) => {
-      console.error('Socket connection error:', err.message);
-      console.error('Full connection error object:', err);
-      // Less intrusive error reporting for connection blips
-      // Consider a status indicator instead of Alert for non-auth errors
-       if (err.message.includes('Authentication error') || err.message.includes('Unauthorized')) {
+    // Corrected: Handle connect_error safely
+    socketRef.current.on('connect_error', (err: Error) => { // Explicitly type err as Error
+        console.error('Socket connection error:', err.message); // Log the guaranteed message
+        console.error('Full connection error object:', err); // Log the full object to see its structure if needed
+        // Alert only on critical errors, e.g., auth failure indicated by message
+        if (err.message.includes('Authentication error') || err.message.includes('Unauthorized')) { // Check message content
            Alert.alert('Connection Error', 'Authentication failed for real-time updates.');
-       }
+        } else {
+           // Maybe implement a subtle indicator for connection issues
+        }
     });
 
-     socketRef.current.on('joinedRoom', (room) => {
+    // Optional: Listen for successful room join confirmation from backend
+    socketRef.current.on('joinedRoom', (room) => {
         console.log(`Successfully joined room: ${room}`);
-     });
+    });
 
-     socketRef.current.on('joinRoomError', (error: { message?: string }) => {
+    // Optional: Handle errors related to joining the room
+    socketRef.current.on('joinRoomError', (error: { message?: string }) => { // Type error minimally
         console.error(`Error joining room ${chatSessionId}:`, error);
         Alert.alert('Chat Error', `Could not join the chat room: ${error?.message || 'Unknown error'}`);
-     });
+    });
   };
 
+  // Send a new message
   const sendMessage = () => {
     const trimmedMessage = newMessage.trim();
-    if (!trimmedMessage) return; // Prevent sending empty spaces
-
-    if (!socketRef.current || !socketRef.current.connected) {
-      Alert.alert('Cannot Send', 'You are not connected to the chat service.');
-      console.warn('Attempted to send message while socket was not ready or disconnected.');
+    if (!trimmedMessage || !socketRef.current || !socketRef.current.connected) {
+        if (!trimmedMessage) return; // Don't send empty messages
+        Alert.alert('Cannot Send', 'You are not connected to the chat service.');
+        console.warn('Attempted to send message while socket was not ready or disconnected.');
       return;
     }
+
+    // Optimistic UI update (optional but improves perceived speed)
+    // Note: Requires a temporary ID and potentially a 'sending' status
+    // For simplicity, we'll rely on the 'receiveMessage' event from the server
 
     console.log(`Sending message: "${trimmedMessage}" to chat: ${chatSessionId}`);
     socketRef.current.emit('sendMessage', {
       chatSessionId: chatSessionId,
       content: trimmedMessage,
+      // Sender info is usually added by the backend based on the authenticated socket
     });
 
-    setNewMessage('');
+    setNewMessage(''); // Clear the input field
   };
 
+
   // --- Rendering ---
+
+  // Render individual message item
   const renderMessage = ({ item }: { item: Message }) => {
+    // Determine if the message is from the current logged-in user
     const isCurrentUser = item.sender._id === currentUserId;
 
+    // Format timestamp (example: 10:30 AM)
     let messageTime = '';
     try {
-      if (item.createdAt && !isNaN(new Date(item.createdAt).getTime())) {
-        messageTime = new Date(item.createdAt).toLocaleTimeString([], {
-          hour: 'numeric', // Use 'numeric' for cleaner look (e.g., 5:30 PM)
-          minute: '2-digit',
-          hour12: true,
-        });
-      } else {
-        console.warn("Invalid createdAt date received:", item.createdAt);
-      }
+        // Check if createdAt is a valid date string before formatting
+        if(item.createdAt && !isNaN(new Date(item.createdAt).getTime())){
+           messageTime = new Date(item.createdAt).toLocaleTimeString([], {
+               hour: '2-digit',
+               minute: '2-digit',
+               hour12: true,
+           });
+        } else {
+            console.warn("Invalid createdAt date received:", item.createdAt);
+        }
     } catch (e) {
-      console.error("Error formatting date:", item.createdAt, e);
+        console.error("Error formatting date:", item.createdAt, e);
     }
 
+
     return (
-      <View style={[styles.messageRow, isCurrentUser ? styles.sentRow : styles.receivedRow]}>
-        <View style={[styles.messageBubbleBase, isCurrentUser ? styles.sentBubble : styles.receivedBubble]}>
-          {/* Only show sender name for received messages from others */}
+      <View
+        style={[
+          styles.messageRow,
+          isCurrentUser ? styles.sentRow : styles.receivedRow,
+        ]}
+      >
+        <View
+          style={[
+            styles.messageBubble,
+            isCurrentUser ? styles.sentBubble : styles.receivedBubble,
+          ]}
+        >
+          {/* Show sender name only for received messages */}
           {!isCurrentUser && (
             <Text style={styles.senderName}>{item.sender?.name || 'User'}</Text>
           )}
+          {/* Apply white text color for sent messages */}
           <Text style={[styles.messageText, isCurrentUser && styles.sentMessageText]}>
-            {item.content}
+              {item.content}
           </Text>
-          <Text style={[styles.messageTimestamp, isCurrentUser ? styles.sentTimestamp : styles.receivedTimestamp]}>
-            {messageTime}
-          </Text>
+           <Text style={[styles.messageTimestamp, isCurrentUser ? styles.sentTimestamp : styles.receivedTimestamp]}>
+              {messageTime}
+           </Text>
         </View>
       </View>
     );
   };
 
+  // Show loading indicator while fetching initial data
   if (loading) {
     return (
       <LinearGradient colors={['#FFFFFF', '#E8F0FE']} style={styles.gradient}>
         <SafeAreaView style={styles.safeArea}>
-          {/* Keep the Nav Bar consistent during loading */}
+          {/* Keep the Nav Bar consistent */}
           <View style={styles.navBar}>
             <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-              <FontAwesome name="arrow-left" size={22} color={AppColors.primary} />
+              <FontAwesome name="arrow-left" size={20} color="#003E7E" />
             </TouchableOpacity>
-            <View style={styles.navTitleContainer}>
-              <Text style={styles.navTitle}>Live Chat</Text>
-            </View>
-            <View style={styles.navBarRightPlaceholder} /> {/* Balance the back button */}
+            <Text style={styles.navTitle}>Live Chat</Text>
           </View>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={AppColors.primary} />
+            <ActivityIndicator size="large" color="#003E7E" />
             <Text style={styles.loadingText}>Loading Chat...</Text>
           </View>
         </SafeAreaView>
@@ -282,26 +322,24 @@ const LiveChatScreen = () => {
     );
   }
 
+  // Main chat screen UI
   return (
-    <LinearGradient colors={['#FFFFFF', '#EBF2FF']} style={styles.gradient}>
-       {/* Use a slightly different gradient */}
+    <LinearGradient colors={['#FFFFFF', '#E8F0FE']} style={styles.gradient}>
       <SafeAreaView style={styles.safeArea}>
         {/* Navigation Bar */}
         <View style={styles.navBar}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <FontAwesome name="arrow-left" size={22} color={AppColors.primary} />
+            <FontAwesome name="arrow-left" size={20} color="#003E7E" />
           </TouchableOpacity>
-          <View style={styles.navTitleContainer}>
-             <Text style={styles.navTitle}>Live Chat</Text>
-             {/* Optionally add subtitle or status here */}
-          </View>
-          <View style={styles.navBarRightPlaceholder} /> {/* Balance the back button */}
+          <Text style={styles.navTitle}>Live Chat</Text>
+          {/* Add more icons or info here if needed */}
         </View>
 
+        {/* Keyboard Avoiding View wraps the list and input */}
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoidingContainer}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 65 : 0} // Fine-tune this offset
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0} // Adjust offset as needed
         >
           {/* Message List */}
           <FlatList
@@ -311,33 +349,25 @@ const LiveChatScreen = () => {
             keyExtractor={(item) => item._id}
             style={styles.messagesContainer}
             contentContainerStyle={styles.messagesContentContainer}
-            inverted // Keep inverted for chat UIs
-            showsVerticalScrollIndicator={false} // Hide scrollbar for cleaner look
-            // Optional: Add initial scroll index or maintain scroll position logic if needed
-            // initialScrollIndex={messages.length > 0 ? messages.length - 1 : 0} // Might not work perfectly with inverted
-            // onContentSizeChange={() => flatListRef.current?.scrollToOffset({ animated: false, offset: 0 })} // Scroll to bottom on size change
+            inverted // Crucial for chat layout (new messages at the bottom)
+            // Optional: Keep scroll position stable when new messages arrive (if not using inverted)
+            // onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            // onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
           />
 
           {/* Input Area */}
-          <View style={styles.inputAreaContainer}>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.textInput}
-                value={newMessage}
-                onChangeText={setNewMessage}
-                placeholder="Type a message..."
-                placeholderTextColor={AppColors.placeholder}
-                multiline
-                selectionColor={AppColors.primary} // Cursor color
-              />
-              <TouchableOpacity
-                style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
-                onPress={sendMessage}
-                disabled={!newMessage.trim()}
-              >
-                <FontAwesome name="send" size={20} color={AppColors.white} style={styles.sendIcon}/>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              value={newMessage}
+              onChangeText={setNewMessage}
+              placeholder="Type your message..."
+              placeholderTextColor="#999"
+              multiline // Allow multiline input
+            />
+            <TouchableOpacity style={styles.sendButton} onPress={sendMessage} disabled={!newMessage.trim()}>
+              <FontAwesome name="send" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -345,24 +375,7 @@ const LiveChatScreen = () => {
   );
 };
 
-// --- Enhanced Styles ---
-
-// Define reusable colors
-const AppColors = {
-  primary: '#006AFF', // A vibrant blue
-  secondary: '#F0F3F5', // Light grey for received bubbles/input background
-  backgroundGradientStart: '#FFFFFF',
-  backgroundGradientEnd: '#EBF2FF', // Softer blue gradient end
-  sentBubble: '#007AFF', // Classic iOS blue for sent
-  receivedBubble: '#E5E5EA', // Classic iOS grey for received
-  textPrimary: '#0D0D0D', // Almost black for readability
-  textSecondary: '#FFFFFF', // White text for dark bubbles
-  textSubtle: '#6B7280', // Grey for timestamps, sender names
-  placeholder: '#9CA3AF',
-  white: '#FFFFFF',
-  lightBorder: '#E1E4E8',
-  shadowColor: '#000000', // For iOS shadows
-};
+// --- Styles ---
 
 const styles = StyleSheet.create({
   gradient: {
@@ -370,174 +383,133 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    backgroundColor: 'transparent', // Let gradient show through
   },
-  // --- Nav Bar ---
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10, // Reduced horizontal padding
-    paddingVertical: 8,
-    backgroundColor: AppColors.white,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF', // Slightly different background for nav
     borderBottomWidth: 1,
-    borderBottomColor: AppColors.lightBorder,
-    height: Platform.OS === 'ios' ? 55 : 60, // Adjust height slightly
-    justifyContent: 'space-between', // Use space-between for centering
+    borderBottomColor: '#E0E0E0', // Softer border color
+    height: 60, // Standard nav bar height (adjust as needed for different devices/OS)
   },
   backButton: {
-    padding: 8, // Increase tap area
-  },
-  navTitleContainer: {
-    flex: 1, // Allow title container to take up space
-    alignItems: 'center', // Center title horizontally
+    padding: 5, // Easier to tap
+    marginRight: 15,
   },
   navTitle: {
-    fontSize: 17,
+    fontSize: 18, // Slightly smaller title
     fontWeight: '600', // Semi-bold
-    color: AppColors.textPrimary,
+    color: '#003E7E',
   },
-  navBarRightPlaceholder: {
-    width: 40, // Match approx width of back button for balance
-    padding: 8, // Keep consistent padding
-  },
-  // --- Keyboard Avoiding & List ---
   keyboardAvoidingContainer: {
-    flex: 1,
+    flex: 1, // Takes remaining space
   },
   messagesContainer: {
-    flex: 1,
-    paddingHorizontal: 12, // Consistent horizontal padding
+    flex: 1, // Takes up available space above input
+    paddingHorizontal: 10, // Padding on the sides of the list
   },
   messagesContentContainer: {
-    paddingTop: 15, // Space from top (visually bottom in inverted)
-    paddingBottom: 10, // Space from input area
+     paddingTop: 10, // Add some padding at the top (which is visually the bottom in inverted)
+     paddingBottom: 5, // Padding at the bottom (visually the top)
   },
-  // --- Message Bubbles ---
   messageRow: {
-    flexDirection: 'row',
-    marginVertical: 6, // Adjusted vertical spacing
+    flexDirection: 'row', // Align bubble container within the row
+    marginVertical: 5, // Space between message rows
   },
   sentRow: {
-    justifyContent: 'flex-end',
-    marginLeft: 60, // Keep pushing sent messages left
+    justifyContent: 'flex-end', // Pushes bubble to the right
+    marginLeft: 50, // Ensure sent messages don't take full width
   },
   receivedRow: {
-    justifyContent: 'flex-start',
-    marginRight: 60, // Keep pushing received messages right
+    justifyContent: 'flex-start', // Pushes bubble to the left
+    marginRight: 50, // Ensure received messages don't take full width
   },
-  messageBubbleBase: {
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    borderRadius: 20, // Increased rounding
-    maxWidth: '100%', // Ensure bubble doesn't overflow row padding
-    // iOS Shadow
-    shadowColor: AppColors.shadowColor,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 1.5,
-    // Android Shadow
-    elevation: 2,
+  messageBubble: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 18, // More rounded corners
+    maxWidth: '100%', // Max width relative to the row container
   },
   sentBubble: {
-    backgroundColor: AppColors.sentBubble,
-    borderBottomRightRadius: 5, // Tail effect
+    backgroundColor: '#007AFF', // Classic blue for sent messages
+     // Make bottom-right corner less rounded for a 'tail' effect (optional)
+     borderBottomRightRadius: 5,
   },
   receivedBubble: {
-    backgroundColor: AppColors.receivedBubble,
-    borderBottomLeftRadius: 5, // Tail effect
+    backgroundColor: '#E5E5EA', // Light grey for received messages
+    // Make bottom-left corner less rounded
+    borderBottomLeftRadius: 5,
   },
   senderName: {
     fontSize: 12,
-    fontWeight: '500', // Medium weight
-    color: AppColors.textSubtle,
-    marginBottom: 4, // Space below name
-    textTransform: 'capitalize', // Optional: Capitalize sender names
+    fontWeight: '600',
+    color: '#666', // Darker grey for name
+    marginBottom: 3, // Space between name and message
   },
   messageText: {
     fontSize: 16,
-    lineHeight: 22, // Improve readability
-    color: AppColors.textPrimary,
+    color: '#000000', // Default black for received text
   },
+  // Specific text color for sent messages for contrast
   sentMessageText: {
-    color: AppColors.textSecondary,
+    color: '#FFFFFF',
   },
-  messageTimestamp: {
-    fontSize: 11,
-    color: AppColors.textSubtle, // Default subtle color
-    marginTop: 5,
-    alignSelf: 'flex-end', // Position timestamp bottom-right
-  },
-  sentTimestamp: {
-    color: 'rgba(255, 255, 255, 0.7)', // Lighter timestamp for dark background
-  },
-  receivedTimestamp: {
-    color: AppColors.textSubtle, // Keep subtle grey for light background
-  },
-  // --- Input Area ---
-  inputAreaContainer: {
-    borderTopWidth: 1,
-    borderTopColor: AppColors.lightBorder,
-    backgroundColor: AppColors.white, // Input area background
-    paddingBottom: Platform.OS === 'ios' ? 5 : 0, // Adjust padding for different platforms if needed below input
-  },
+   messageTimestamp: {
+      fontSize: 10,
+      color: '#888', // Grey timestamp
+      marginTop: 4, // Space above timestamp
+      alignSelf: 'flex-end', // Timestamp to the right within the bubble
+   },
+   sentTimestamp: {
+      color: '#E0E0E0', // Lighter timestamp for dark background
+   },
+   receivedTimestamp: {
+      color: '#666666', // Darker timestamp for light background
+   },
+
   inputContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end', // Align items to bottom, good for multiline
-    paddingHorizontal: 12,
+    alignItems: 'center', // Align items vertically, esp. for multiline input
+    paddingHorizontal: 10,
     paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    backgroundColor: '#FFFFFF', // Input area background
   },
-  textInput: {
+  input: {
     flex: 1,
-    minHeight: 42, // Slightly taller input
-    maxHeight: 110,
-    backgroundColor: AppColors.secondary, // Use light grey background
-    borderRadius: 21, // Match button height/2
-    paddingHorizontal: 16,
-    paddingVertical: 10, // Adjust vertical padding
+    minHeight: 40, // Minimum height
+    maxHeight: 120, // Max height for multiline
+    backgroundColor: '#F0F0F0', // Input field background
+    borderRadius: 20, // Rounded input field
+    paddingHorizontal: 15,
+    paddingTop: Platform.OS === 'ios' ? 10 : 8, // Adjust padding top for different platforms
+    paddingBottom: Platform.OS === 'ios' ? 10 : 8, // Adjust padding bottom
     fontSize: 16,
-    lineHeight: 20, // Adjust line height for multiline
     marginRight: 10,
-    color: AppColors.textPrimary, // Ensure text color is set
   },
   sendButton: {
-    backgroundColor: AppColors.primary,
-    width: 42, // Circular button
-    height: 42,
-    borderRadius: 21,
+    backgroundColor: '#007AFF',
+    borderRadius: 20, // Make button circular or oval
+    width: 40, // Fixed width
+    height: 40, // Fixed height
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Platform.OS === 'ios' ? 0 : 1, // Align button nicely with input bottom
+    paddingLeft: 3, // Slight adjustment for send icon centering
   },
-  sendButtonDisabled: {
-    backgroundColor: '#AABBDD', // Lighter blue when disabled
-  },
-  sendIcon: {
-    marginLeft: 2, // Fine-tune icon position within button
-  },
-  // --- Loading State ---
+  // sendButtonText is removed as we are using an Icon
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent', // Use gradient background
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 10,
     fontSize: 16,
-    color: AppColors.primary, // Use primary color
-    fontWeight: '500',
+    color: '#003E7E',
   },
 });
 
 export default LiveChatScreen;
-
-// --- Placeholder for ../api/api.ts content (Keep your existing functions) ---
-/*
-export const getToken = async (): Promise<string | null> => { ... };
-export const fetchData = async (apiUrl: string, endpoint: string, options: RequestInit = {}) => { ... };
-*/
-
-// --- Placeholder for ../api/apiUrl.ts content ---
-/*
-export const apiUrl = 'YOUR_API_BASE_URL'; // e.g., 'http://localhost:3000' or 'https://your-api.com'
-*/
