@@ -1,0 +1,6 @@
+{"level":"info","message":"MongoDB Connected: cluster0-shard-00-02.odwdk.mongodb.net","timestamp":"2025-04-19 08:41:13"}
+{"level":"info","message":"MongoDB Connected: cluster0-shard-00-00.odwdk.mongodb.net","timestamp":"2025-04-19 08:41:21"}
+{"level":"info","message":"MongoDB Connected: cluster0-shard-00-01.odwdk.mongodb.net","timestamp":"2025-04-19 08:41:37"}
+{"level":"info","message":"MongoDB Connected: cluster0-shard-00-00.odwdk.mongodb.net","timestamp":"2025-04-19 08:43:00"}
+{"level":"info","message":"MongoDB Connected: cluster0-shard-00-00.odwdk.mongodb.net","timestamp":"2025-04-19 08:44:04"}
+{"level":"info","message":"MongoDB Connected: cluster0-shard-00-02.odwdk.mongodb.net","timestamp":"2025-04-19 08:44:58"}

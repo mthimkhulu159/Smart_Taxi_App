@@ -339,6 +339,39 @@ exports.getAcceptedTaxiDetails = async (req, res) => {
   }
 };
 
+exports.getPendingRideRequests = async (req, res) => {
+  try {
+    const passengerId = req.user._id;
+
+    // Find all ride requests with status "pending" made by the passenger
+    const pendingRequests = await RideRequest.find({
+      passenger: passengerId,
+      status: "pending",
+    }).populate("route");
+
+    if (!pendingRequests.length) {
+      return res.status(404).json({ error: "No pending ride requests found for this passenger." });
+    }
+
+    // Map the pending requests to include relevant details
+    const pendingRequestDetails = pendingRequests.map((request) => ({
+      requestId: request._id,
+      startingStop: request.startingStop,
+      destinationStop: request.destinationStop,
+      route: request.route.routeName,  // Include route details if needed
+      requestType: request.requestType,  // Include the type of request (ride or pickup)
+      status: request.status,  // Status will be 'pending' here
+      createdAt: request.createdAt,  // You can display when the request was created
+    }));
+
+    return res.status(200).json({ pendingRequests: pendingRequestDetails });
+  } catch (err) {
+    console.error("Error in getPendingRideRequests:", err);
+    return res.status(500).json({ error: "Server error." });
+  }
+};
+
+
 exports.getDriverAcceptedPassengerDetails = async (req, res) => {
   try {
     const driverId = req.user._id;
@@ -368,7 +401,7 @@ exports.getDriverAcceptedPassengerDetails = async (req, res) => {
       startingStop: request.startingStop,
       destinationStop: request.destinationStop,
       status: request.status,
-      // Optionally include route details if needed:
+      requestType: request.requestType,
       route: request.route.routeName,
     }));
 
@@ -378,10 +411,6 @@ exports.getDriverAcceptedPassengerDetails = async (req, res) => {
     return res.status(500).json({ error: "Server error." });
   }
 };
-
-
-
-// --- NEW FUNCTIONS ---
 
 /**
  * @desc Cancel a ride/pickup request (Passenger action)

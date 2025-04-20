@@ -23,8 +23,9 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
 import { apiUrl } from '../api/apiUrl';
 import CustomConfirm from '../components/CustomConfirm'; // Import CustomConfirm
+import { RootStackParamList } from '../types/navigation';
 
-// --- Types and Interfaces (As provided by user) ---
+// --- Types and Interfaces ---
 interface PassengerDetails {
     requestId: string;
     passengerId: string;
@@ -32,31 +33,15 @@ interface PassengerDetails {
     passengerEmail?: string;
     passengerPhone: string;
     startingStop: string;
-    destinationStop: string;
+    destinationStop: string; // Still needed even if sometimes hidden
     status: string;
+    requestType: string; // <-- Added requestType
     route?: string;
 }
 
-// --- Navigation Types (As provided by user) ---
-type RootStackParamList = {
-    Home: { acceptedTaxiId?: string };
-    requestRide: undefined;
-    ViewTaxi: undefined;
-    ViewRequests: undefined;
-    ViewRoute: undefined;
-    LiveChat: { chatSessionId: string };
-    TaxiManagement: undefined;
-    Profile: undefined;
-    AcceptedRequest: undefined;
-    AcceptedPassenger: undefined; // Current screen
-    Auth: undefined;
-    TaxiFareCalculator: undefined
-    // Add other screens if necessary
-};
-
 type AcceptedPassengersScreenNavigationProp = StackNavigationProp<RootStackParamList, 'AcceptedPassenger'>;
 
-// --- Sidebar Props Interface (As provided by user) ---
+// --- Sidebar Props Interface ---
 interface SidebarProps {
     isVisible: boolean;
     onClose: () => void;
@@ -64,7 +49,7 @@ interface SidebarProps {
     activeScreen: keyof RootStackParamList;
 }
 
-// --- Loading Component (As provided by user) ---
+// --- Loading Component ---
 const Loading: React.FC = () => {
     const spinAnim = useRef(new Animated.Value(0)).current;
     useEffect(() => { Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 1000, useNativeDriver: true })).start(); }, [spinAnim]);
@@ -76,19 +61,16 @@ const Loading: React.FC = () => {
     );
 };
 
-// --- Action Button Component (As provided by user) ---
+// --- Action Button Component ---
 const ActionButton: React.FC<{ onPress: () => void; title: string; iconName?: any; iconFamily?: 'Ionicons' | 'MaterialIcons' | 'FontAwesome'; color?: string; textColor?: string; loading?: boolean; style?: object; disabled?: boolean }> =
     ({ onPress, title, iconName, iconFamily = 'Ionicons', color = '#003E7E', textColor = '#FFFFFF', loading = false, style = {}, disabled = false }) => {
     const IconComponent = iconFamily === 'MaterialIcons' ? MaterialIcons : iconFamily === 'FontAwesome' ? FontAwesome : Ionicons;
     const isDisabled = disabled || loading;
-    // *** DEBUG: Log button disabled state ***
-    // console.log(`Button '${title}' - Disabled: ${isDisabled}, Loading: ${loading}`);
     return (
         <TouchableOpacity
             style={[ styles.actionButtonBase, { backgroundColor: color }, style, isDisabled && styles.actionButtonDisabled ]}
-            onPress={onPress} // Ensure onPress is correctly passed
+            onPress={onPress}
             disabled={isDisabled}
-            // *** DEBUG: Add activeOpacity for visual feedback on press ***
             activeOpacity={isDisabled ? 1.0 : 0.6}
         >
         {loading ? <ActivityIndicator size="small" color={textColor} /> : ( <>
@@ -99,7 +81,7 @@ const ActionButton: React.FC<{ onPress: () => void; title: string; iconName?: an
     );
 };
 
-// --- Info Row Component (As provided by user) ---
+// --- Info Row Component ---
 const InfoRow: React.FC<{ label: string; value: string | number | undefined; iconName: any; iconFamily?: 'Ionicons' | 'MaterialIcons' | 'FontAwesome'; valueStyle?: TextStyle }> =
     ({ label, value, iconName, iconFamily = 'Ionicons', valueStyle = {} }) => {
     const IconComponent = iconFamily === 'MaterialIcons' ? MaterialIcons : iconFamily === 'FontAwesome' ? FontAwesome : Ionicons;
@@ -150,7 +132,7 @@ const AcceptedPassengersScreen = () => {
         hideCustomConfirm();
     };
 
-    // Fetching Logic (Using user's original endpoint)
+    // Fetching Logic
     const fetchPassengerDetails = async (showAlerts = false) => {
         if (isInitiatingChat || isCancelling) {
             console.log("Fetch skipped: Action (chat/cancel) in progress.");
@@ -168,19 +150,22 @@ const AcceptedPassengersScreen = () => {
                 method: 'GET',
                 headers: { Authorization: `Bearer ${token}` },
             });
-            if (response?.passengerDetails) {
-                if (Array.isArray(response.passengerDetails)) {
-                    setPassengerDetails(response.passengerDetails);
-                } else {
-                    console.warn("Expected passengerDetails to be an array, received:", typeof response.passengerDetails);
-                    setPassengerDetails([]);
-                }
-                if (showAlerts && response.passengerDetails.length === 0) {
+            // Check if the response structure includes passengerDetails and it's an array
+            if (response?.passengerDetails && Array.isArray(response.passengerDetails)) {
+                // Ensure requestType is present, default if missing (though backend should provide it)
+                const detailsWithDefaults = response.passengerDetails.map((detail: any) => ({
+                    ...detail,
+                    requestType: detail.requestType || 'unknown' // Provide a default if API omits it
+                }));
+                setPassengerDetails(detailsWithDefaults);
+
+                if (showAlerts && detailsWithDefaults.length === 0) {
                     Alert.alert('No Passengers', 'You have no currently accepted passengers.');
                 }
             } else {
+                console.warn("Expected passengerDetails to be an array, received:", response);
                 setPassengerDetails([]);
-                if(showAlerts) Alert.alert('Info', 'No accepted passenger details found.');
+                if(showAlerts) Alert.alert('Info', 'No accepted passenger details found or response format incorrect.');
             }
         } catch (error: any) {
             console.error('Error fetching passenger details:', error);
@@ -193,7 +178,7 @@ const AcceptedPassengersScreen = () => {
         }
     };
 
-    // Initial Fetch & Animation (As provided by user, added focus listener)
+    // Initial Fetch & Animation
     useEffect(() => {
         fetchPassengerDetails();
         const unsubscribe = navigation.addListener('focus', () => {
@@ -217,18 +202,18 @@ const AcceptedPassengersScreen = () => {
     }, [isLoading, fadeAnim, slideAnim]);
 
 
-    // Chat Initiation Handler (Ensure finally block resets state)
+    // Chat Initiation Handler
     const handleChat = async (requestId: string) => {
         if (isInitiatingChat || isCancelling) {
             console.log(`handleChat skipped for ${requestId}. Current state: chat=${isInitiatingChat}, cancel=${isCancelling}`);
             return;
         }
         console.log(`Initiating chat for ${requestId}`);
-        setIsInitiatingChat(requestId); // Set state BEFORE async call
+        setIsInitiatingChat(requestId);
         const token = await getToken();
         if (!token) {
             Alert.alert('Authentication Error', 'Please login.');
-            setIsInitiatingChat(null); // Reset state if token fails early
+            setIsInitiatingChat(null);
             return;
         }
         try {
@@ -245,40 +230,35 @@ const AcceptedPassengersScreen = () => {
         } catch (error: any) {
             console.error('Error initiating chat:', error);
             Alert.alert('Chat Error', error.message || 'Could not start chat session.');
-            // *** Ensure state is reset even on error ***
-            // setIsInitiatingChat(null); // Moved to finally
         } finally {
-            // *** CRITICAL: Ensure state is ALWAYS reset ***
             console.log(`Finished chat attempt for ${requestId}. Resetting isInitiatingChat.`);
             setIsInitiatingChat(null);
         }
     };
 
-    // Cancel Ride Handler (Add detailed logging)
+    // Cancel Ride Handler
     const handleCancelRide = (requestId: string, passengerName: string) => {
-        console.log(`[handleCancelRide] Attempting cancel for Request ID: ${requestId}`); // Log entry
+        console.log(`[handleCancelRide] Attempting cancel for Request ID: ${requestId}`);
 
-        // Check if another action is already in progress
         if (isInitiatingChat || isCancelling) {
             console.log(`[handleCancelRide] Action skipped. Current state: chat=${isInitiatingChat}, cancel=${isCancelling}`);
-            return; // Exit silently if already processing
+            return;
         }
         console.log(`[handleCancelRide] No other action in progress. Proceeding...`);
 
         showCustomConfirm(
             `Are you sure you want to cancel the ride for ${passengerName}?`,
             async () => {
-                setIsCancelling(requestId); // Set loading state
+                setIsCancelling(requestId);
                 console.log(`[handleCancelRide] State isCancelling set to: ${requestId}`);
-                let token: string | null = null; // Define token variable here
+                let token: string | null = null;
                 try {
                     console.log(`[handleCancelRide] Getting token...`);
                     token = await getToken();
                     if (!token) {
                         console.error(`[handleCancelRide] Token not found!`);
                         Alert.alert('Authentication Error', 'Please login.');
-                        // No need to reset isCancelling here, finally block will handle it
-                        return; // Exit if no token
+                        return;
                     }
                     console.log(`[handleCancelRide] Token found. Calling API endpoint: api/rideRequest/${requestId}/cancel/driver`);
 
@@ -301,10 +281,7 @@ const AcceptedPassengersScreen = () => {
                 } catch (error: any) {
                     console.error(`[handleCancelRide] Error during cancellation API call for ${requestId}:`, error);
                     Alert.alert('Cancellation Error', `Could not cancel ride: ${error.message}`);
-                    // *** Ensure state is reset even on error ***
-                    // setIsCancelling(null); // Moved to finally
                 } finally {
-                    // *** CRITICAL: Ensure state is ALWAYS reset ***
                     console.log(`[handleCancelRide] Finished cancellation attempt for ${requestId}. Resetting isCancelling.`);
                     setIsCancelling(null);
                 }
@@ -312,7 +289,7 @@ const AcceptedPassengersScreen = () => {
         );
     };
 
-    // Helper to style status text (As provided by user)
+    // Helper to style status text
     const getStatusStyle = (status: string): TextStyle => {
         switch (status?.toLowerCase()) {
             case 'accepted': return { color: 'green', fontWeight: 'bold' };
@@ -324,7 +301,7 @@ const AcceptedPassengersScreen = () => {
         }
     };
 
-    // Render Passenger Card (Add console log inside onPress)
+    // Render Passenger Card
     const renderPassenger = ({ item }: { item: PassengerDetails }) => {
         const isAnyActionInProgress = isInitiatingChat !== null || isCancelling !== null;
         const isThisItemCancelling = isCancelling === item.requestId;
@@ -340,14 +317,19 @@ const AcceptedPassengersScreen = () => {
                 <View style={styles.passengerCardBody}>
                     <InfoRow label="Phone" value={item.passengerPhone} iconName="call-outline" />
                     <InfoRow label="From" value={item.startingStop} iconName="navigate-circle-outline"/>
-                    <InfoRow label="To" value={item.destinationStop} iconName="flag-outline"/>
+                    {/* --- Conditionally render "To" InfoRow based on requestType --- */}
+                    {item.requestType !== 'pickup' && (
+                         <InfoRow label="To" value={item.destinationStop} iconName="flag-outline"/>
+                    )}
+                    {/* --------------------------------------------------------------- */}
                     {item.route && <InfoRow label="Route" value={item.route} iconName="map-outline"/>}
                     <InfoRow label="Request ID" value={item.requestId} iconName="document-text-outline"/>
+                     {/* Optional: Display request type for debugging or info */}
+                    {/* <InfoRow label="Type" value={item.requestType} iconName="information-circle-outline"/> */}
                 </View>
                 <View style={styles.passengerCardFooter}>
                     <ActionButton
                         title="Cancel Ride"
-                        // *** DEBUG: Add log inside the onPress lambda ***
                         onPress={() => {
                             console.log(`Cancel Ride button pressed for Request ID: ${item.requestId}`);
                             handleCancelRide(item.requestId, item.passengerName);
@@ -375,7 +357,7 @@ const AcceptedPassengersScreen = () => {
         );
     }
 
-    // Navigation Handler (As provided by user)
+    // Navigation Handler
     const handleNavigate = (screen: keyof RootStackParamList, params?: any) => {
         setSidebarVisible(false);
         switch (screen) {
@@ -401,7 +383,7 @@ const AcceptedPassengersScreen = () => {
 
     const toggleSidebar = () => { setSidebarVisible(!sidebarVisible); };
 
-    // --- Render Logic (As provided by user, added disabled states to header buttons) ---
+    // --- Render Logic ---
     return (
         <LinearGradient colors={['#FFFFFF', '#E8F0FE']} style={styles.gradient}>
             <SafeAreaView style={styles.safeArea}>
@@ -444,7 +426,7 @@ const AcceptedPassengersScreen = () => {
     );
 };
 
-// --- Styles --- (As provided by user)
+// --- Styles ---
 const styles = StyleSheet.create({
     gradient: { flex: 1 },
     safeArea: { flex: 1, backgroundColor: 'transparent' },

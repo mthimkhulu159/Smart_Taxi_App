@@ -6,35 +6,50 @@ import {
   ActivityIndicator,
   StyleSheet,
   TouchableOpacity,
-  Alert,
+  Alert, // Still useful for confirmations if needed, but not for errors now
   Animated,
   ScrollView,
   SafeAreaView,
   Platform,
   ViewStyle,
   TextStyle,
-  Modal,
+  Modal, // Import Modal
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { fetchData, getToken } from '../api/api'; // Assuming correct path and fetchData signature
+import { fetchData, getToken } from '../api/api'; // Assuming correct path
 import { FontAwesome, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Sidebar from '../components/Sidebar';
+import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
 import { apiUrl } from '../api/apiUrl';
-import { RootStackParamList } from '../types/navigation';
 
 // --- Types and Interfaces ---
 interface RideRequest {
   _id: string;
-  passenger: string; // Could be ID
-  passengerName?: string; // Populated name from backend
-  passengerPhone?: string; // Populated phone from backend (specifically for pickup)
+  passenger: string; // Ideally, backend sends passenger name or object with name
+  passengerName?: string; // Add if backend can provide it
   startingStop: string;
-  destinationStop?: string; // Optional for pickup requests
-  requestType: 'ride' | 'pickup';
-  status: string;
+  destinationStop: string;
+  requestType: 'ride' | 'pickup'; // Use specific types
+  status: string; // e.g., 'pending', 'accepted'
 }
+
+// --- Navigation Types (Ensure consistent) ---
+type RootStackParamList = {
+  Home: { acceptedTaxiId?: string };
+  requestRide: undefined;
+  ViewTaxi: undefined;
+  ViewRequests: undefined; // Current screen
+  LiveChat: undefined;
+  TaxiManagement: undefined;
+  Profile: undefined;
+  AcceptedRequest: undefined;
+  AcceptedPassenger: undefined;
+  ViewRoute: undefined;
+  Auth: undefined;
+  TaxiFareCalculator: undefined;
+  // Add other screens if necessary
+};
 
 type ViewRequestsNavigationProp = StackNavigationProp<RootStackParamList, 'ViewRequests'>;
 
@@ -48,9 +63,7 @@ interface SidebarProps {
 // --- Loading Component ---
 const Loading: React.FC = () => {
   const spinAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 1000, useNativeDriver: true })).start();
-  }, [spinAnim]);
+  useEffect(() => { Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 1000, useNativeDriver: true })).start(); }, [spinAnim]);
   const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   return (
     <LinearGradient colors={['#FFFFFF', '#E8F0FE']} style={styles.loadingGradient}>
@@ -65,14 +78,14 @@ const ActionButton: React.FC<{ onPress: () => void; title: string; iconName?: an
     const IconComponent = iconFamily === 'MaterialIcons' ? MaterialIcons : iconFamily === 'FontAwesome' ? FontAwesome : Ionicons;
     const isDisabled = disabled || loading;
     return (
-      <TouchableOpacity style={[styles.actionButtonBase, { backgroundColor: color }, style, isDisabled && styles.actionButtonDisabled]} onPress={onPress} disabled={isDisabled}>
-        {loading ? <ActivityIndicator size="small" color={textColor} /> : (<>
+      <TouchableOpacity style={[ styles.actionButtonBase, { backgroundColor: color }, style, isDisabled && styles.actionButtonDisabled ]} onPress={onPress} disabled={isDisabled}>
+      {loading ? <ActivityIndicator size="small" color={textColor} /> : ( <>
           {iconName && <IconComponent name={iconName} size={18} color={textColor} style={styles.actionButtonIcon} />}
           <Text style={[styles.actionButtonText, { color: textColor }]}>{title}</Text>
-        </>)}
+         </> )}
       </TouchableOpacity>
     );
-  };
+};
 
 // --- Custom Error Modal Component ---
 const ErrorModal: React.FC<{ visible: boolean; title: string; message: string; onClose: () => void }> = ({ visible, title, message, onClose }) => {
@@ -96,41 +109,33 @@ const ErrorModal: React.FC<{ visible: boolean; title: string; message: string; o
   );
 };
 
-// Helper to style status text
-const getStatusStyle = (status: string): TextStyle => {
-  switch (status?.toLowerCase()) {
-    case 'pending': return { color: 'orange', fontWeight: 'bold' };
-    case 'accepted': return { color: 'green', fontWeight: 'bold' };
-    case 'cancelled': return { color: 'red', fontWeight: 'bold' };
-    default: return { color: '#555' };
-  }
-};
-
 
 // --- Main ViewRequestScreen Component ---
 const ViewRequestScreen: React.FC = () => {
   const [requests, setRequests] = useState<RideRequest[]>([]);
-  // State for selected request type, default to 'ride'
-  const [selectedRequestType, setSelectedRequestType] = useState<'ride' | 'pickup'>('ride');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isAccepting, setIsAccepting] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // For initial fetch
+  const [isAccepting, setIsAccepting] = useState<string | null>(null); // Store ID of request being accepted
   const [sidebarVisible, setSidebarVisible] = useState(false);
 
+  // State for custom error modal
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorTitle, setErrorTitle] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
   const navigation = useNavigation<ViewRequestsNavigationProp>();
 
+  // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
+  // Function to show the custom error modal
   const displayError = (title: string, message: string) => {
     setErrorTitle(title);
     setErrorMessage(message);
     setShowErrorModal(true);
   };
 
+  // Function to close the custom error modal
   const closeErrorModal = () => {
     setShowErrorModal(false);
     setErrorTitle('');
@@ -138,7 +143,7 @@ const ViewRequestScreen: React.FC = () => {
   };
 
 
-  // Fetching Logic - Updated to use different endpoints based on type
+  // Fetching Logic
   const fetchNearbyRequests = async (showAlerts = false) => {
     setIsLoading(true);
     try {
@@ -147,64 +152,33 @@ const ViewRequestScreen: React.FC = () => {
         displayError('Authentication Error', 'Authentication token not found. Please log in again.');
         return;
       }
-
-      let path = '';
-      let dataKey = ''; // Key to access the list of requests in the response
-
-      if (selectedRequestType === 'ride') {
-        path = 'api/rideRequest/driver/ride-requests';
-        dataKey = 'rideRequests'; // According to your backend code
-      } else { // selectedRequestType === 'pickup'
-        path = 'api/rideRequest/driver/pickup-requests';
-        dataKey = 'pickupRequests'; // According to your backend code
-      }
-
-      // Use your existing fetchData function with apiUrl and the determined path
-      const data = await fetchData(apiUrl, path, {
+      const data = await fetchData(apiUrl, 'api/rideRequest/driver/ride-requests', {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      const fetchedRequests = data[dataKey] || [];
-
-      // Map fetched data to the frontend interface, ensuring requestType is correct
-      // and handling potential populated passenger details from the backend
-      const formattedRequests: RideRequest[] = fetchedRequests.map((req: any) => ({
-          ...req,
-          requestType: selectedRequestType, // Explicitly set type for frontend rendering
-          // Map populated passenger details if available (as per your pickup endpoint)
-          passengerName: req.passenger?.name || req.passenger,
-          passengerPhone: req.passenger?.phone,
-          passenger: req.passenger?._id || req.passenger, // Keep original passenger ID/object
-      }));
-
-      setRequests(formattedRequests);
-
-      if (showAlerts && formattedRequests.length === 0) {
-        const typeText = selectedRequestType === 'ride' ? 'ride' : 'pickup';
-        Alert.alert(`No ${typeText} Requests`, `No new nearby ${typeText} requests found at this time.`);
+      setRequests(data.rideRequests || []);
+      if (showAlerts && (!data.rideRequests || data.rideRequests.length === 0)) {
+        // Using Alert for informational message, not error
+        Alert.alert('No Requests', 'No new nearby requests found at this time.');
       }
     } catch (err: any) {
-      console.error(`Error fetching nearby ${selectedRequestType} requests:`, err);
-       // Handle specific error messages from the backend pickup endpoint
-       if (err.message && err.message.includes("'roaming' status to receive pickup requests")) {
-         displayError('Taxi Status', 'Your taxi must be in "roaming" status to receive pickup requests.');
-       } else if (showAlerts || requests.length === 0) {
-         displayError('Fetch Error', err.message || `Failed to fetch nearby ${selectedRequestType} requests. Please try again.`);
-       }
-      setRequests([]);
+      console.error('Error fetching nearby requests:', err);
+      // Show error only if manually refreshing or initial load fails hard
+      if(showAlerts || requests.length === 0){ // Show alert on refresh fail or if list was already empty
+          // Using custom modal for errors
+          displayError('Fetch Error', err.message || 'Failed to fetch nearby requests. Please try again.');
+      }
+      setRequests([]); // Clear requests on error
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Fetch requests when component mounts or selectedRequestType changes
+  // Initial Fetch and Animation
   useEffect(() => {
-    // Call fetchNearbyRequests which will use the current selectedRequestType
-    fetchNearbyRequests(false);
-  }, [selectedRequestType]); // Depend on selectedRequestType
+    fetchNearbyRequests();
+  }, []);
 
-  // Animation useEffect (remains the same)
   useEffect(() => {
     if (!isLoading) {
       const animationTimer = setTimeout(() => {
@@ -218,9 +192,9 @@ const ViewRequestScreen: React.FC = () => {
   }, [isLoading, fadeAnim, slideAnim]);
 
 
-  // Accept Request Handler (remains the same, it just needs the request ID)
+  // Accept Request Handler
   const handleAccept = async (requestId: string) => {
-    setIsAccepting(requestId);
+    setIsAccepting(requestId); // Show loading indicator on the specific button
     try {
       const token = await getToken();
       if (!token) {
@@ -228,24 +202,26 @@ const ViewRequestScreen: React.FC = () => {
         return;
       }
 
-      // Your existing fetchData function might be used here too,
-      // but direct fetch call is also fine if fetchData is only for GET
+      // Assume fetchData now handles parsing response and throwing on non-2xx statuses
+      // Or, we handle the response parsing directly here as before.
+      // Let's handle response parsing here to get specific server error messages.
       const response = await fetch(`${apiUrl}/api/rideRequest/accept/${requestId}`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json', // Often needed for PATCH
         },
       });
 
-      if (response.ok) {
+      if (response.ok) { // Check for success status (200-299)
         const responseData = await response.json();
         Alert.alert('Success', responseData.message || 'Request accepted! You can view details under "Accepted Passenger".',
-          [{ text: 'OK', onPress: () => navigation.navigate('AcceptedPassenger') }]
+          [{ text: 'OK', onPress: () => navigation.navigate('AcceptedPassenger') }] // Navigate after success
         );
         // Remove the accepted request from the list
         setRequests((prev) => prev.filter((req) => req._id !== requestId));
       } else {
+        // Handle non-success status codes
         const statusCode = response.status;
         let errorMsg = 'Failed to accept the request.';
         try {
@@ -254,7 +230,7 @@ const ViewRequestScreen: React.FC = () => {
 
           // Map specific server error messages to user-friendly messages
           if (errorMsg.toLowerCase().includes("ride request not found")) {
-            displayError('Request Not Found', 'The requested request was not found or might have been cancelled.');
+            displayError('Request Not Found', 'The requested ride was not found or might have been cancelled.');
           } else if (errorMsg.toLowerCase().includes("request is no longer pending")) {
             displayError('Request Unavailable', 'This request is no longer pending and cannot be accepted.');
             fetchNearbyRequests(); // Refresh the list to remove it
@@ -267,23 +243,21 @@ const ViewRequestScreen: React.FC = () => {
           } else if (errorMsg.toLowerCase().includes("invalid route stops data")) {
             displayError('Data Error', 'There was an issue with the route information. Please try again later.');
           } else if (errorMsg.toLowerCase().includes("taxi has already passed the passenger's starting stop")) {
-            displayError('Stop Passed', 'Your taxi has already passed the passenger\'s starting stop.');
-            fetchNearbyRequests(); // Refresh the list to remove it
+             displayError('Stop Passed', 'Your taxi has already passed the passenger\'s starting stop.');
+             fetchNearbyRequests(); // Refresh the list to remove it
           } else if (errorMsg.toLowerCase().includes("taxi is not available for pickup requests")) {
             displayError('Taxi Unavailable', 'Your taxi is not currently available for pickup requests.');
           } else if (errorMsg.toLowerCase().includes("unsupported request type")) {
-            displayError('Unsupported Type', 'This request type is not supported by the acceptance logic.');
-          } else if (statusCode === 400 && errorMsg.toLowerCase().includes("your taxi must be in 'roaming' status to receive pickup requests")) {
-             // This specific error is handled during fetch, but might reappear on accept if status changes
-             displayError('Taxi Status', 'Your taxi must be in "roaming" status to accept pickup requests.');
-          }
-           else if (statusCode >= 500) {
+            displayError('Unsupported Type', 'This request type is not supported.');
+          } else if (statusCode >= 500) {
             displayError('Server Error', 'An error occurred on the server. Please try again later.');
           } else {
+            // Generic HTTP error with server message
             displayError(`HTTP Error ${statusCode}`, errorMsg);
           }
 
         } catch (e) {
+          // Handle cases where the error response is not JSON or parsing fails
           console.error("Failed to parse error response or map error message:", e);
           displayError(`Request Failed (Status: ${statusCode})`, 'An unexpected error occurred on the server.');
         }
@@ -291,146 +265,111 @@ const ViewRequestScreen: React.FC = () => {
 
     } catch (err: any) {
       console.error('Error accepting request:', err);
+      // Handle errors that occur before getting a server response (e.g., network issues)
       if (err.message && err.message.includes('Network request failed')) {
-        displayError('Network Error', 'Could not connect to the server. Please check your internet connection.');
+         displayError('Network Error', 'Could not connect to the server. Please check your internet connection.');
       } else {
-        displayError('Unexpected Error', err.message || 'An unexpected error occurred while trying to accept the request.');
+         displayError('Unexpected Error', err.message || 'An unexpected error occurred while trying to accept the request.');
       }
     } finally {
-      setIsAccepting(null);
+      setIsAccepting(null); // Hide loading indicator
     }
   };
 
 
-  // Render Request Card Item (updated to show phone for pickup if available)
+  // Render Request Card Item
   const renderItem = ({ item }: { item: RideRequest }) => (
     <View style={styles.requestCard}>
       <View style={styles.requestCardHeader}>
-        <Ionicons name={item.requestType === 'ride' ? "car-sport-outline" : "location-outline"} size={22} color="#003E7E" />
+          <Ionicons name={item.requestType === 'ride' ? "car-sport-outline" : "location-outline"} size={22} color="#003E7E" />
         <Text style={styles.requestCardTitle}>{item.requestType === 'ride' ? 'Ride Request' : 'Pickup Request'}</Text>
-        <Text style={[styles.requestStatus, getStatusStyle(item.status)]}>{item.status}</Text>
+          <Text style={[styles.requestStatus, getStatusStyle(item.status)]}>{item.status}</Text>
       </View>
       <View style={styles.requestCardBody}>
-        <View style={styles.requestInfoRow}>
-          <Ionicons name="person-outline" size={18} color="#555" style={styles.requestInfoIcon} />
-          <Text style={styles.requestInfoLabel}>Passenger:</Text>
-          {/* Display populated name or original passenger ID */}
-          <Text style={styles.requestInfoValue}>{item.passengerName || item.passenger || 'N/A'}</Text>
-        </View>
-         {/* Show phone number for pickup requests if available */}
-        {item.requestType === 'pickup' && item.passengerPhone && (
-             <View style={styles.requestInfoRow}>
-              <Ionicons name="call-outline" size={18} color="#555" style={styles.requestInfoIcon}/>
-              <Text style={styles.requestInfoLabel}>Phone:</Text>
-              <Text style={styles.requestInfoValue}>{item.passengerPhone}</Text>
-            </View>
-         )}
-        <View style={styles.requestInfoRow}>
-          <Ionicons name="navigate-circle-outline" size={18} color="#555" style={styles.requestInfoIcon} />
-          <Text style={styles.requestInfoLabel}>From:</Text>
-          <Text style={styles.requestInfoValue}>{item.startingStop}</Text>
-        </View>
-        {/* Only show destination for 'ride' type */}
-        {item.requestType === 'ride' && item.destinationStop && (
           <View style={styles.requestInfoRow}>
-            <Ionicons name="flag-outline" size={18} color="#555" style={styles.requestInfoIcon} />
-            <Text style={styles.requestInfoLabel}>To:</Text>
-            <Text style={styles.requestInfoValue}>{item.destinationStop}</Text>
+            <Ionicons name="person-outline" size={18} color="#555" style={styles.requestInfoIcon}/>
+            <Text style={styles.requestInfoLabel}>Passenger:</Text>
+            {/* Display name if available, otherwise ID */}
+            <Text style={styles.requestInfoValue}>{item.passengerName || item.passenger || 'N/A'}</Text>
           </View>
-        )}
+          <View style={styles.requestInfoRow}>
+            <Ionicons name="navigate-circle-outline" size={18} color="#555" style={styles.requestInfoIcon}/>
+            <Text style={styles.requestInfoLabel}>From:</Text>
+            <Text style={styles.requestInfoValue}>{item.startingStop}</Text>
+          </View>
+          {item.requestType === 'ride' && item.destinationStop && ( // Only show destination for 'ride' type
+              <View style={styles.requestInfoRow}>
+                <Ionicons name="flag-outline" size={18} color="#555" style={styles.requestInfoIcon}/>
+                <Text style={styles.requestInfoLabel}>To:</Text>
+                <Text style={styles.requestInfoValue}>{item.destinationStop}</Text>
+              </View>
+          )}
       </View>
-      <View style={styles.requestCardFooter}>
-        <ActionButton
-          title="Accept Request"
-          onPress={() => handleAccept(item._id)}
-          iconName="checkmark-circle-outline"
-          style={styles.acceptButton}
-          color="#28a745" // Green color for accept
-          loading={isAccepting === item._id}
-          disabled={isAccepting !== null}
-        />
-      </View>
+        <View style={styles.requestCardFooter}>
+          <ActionButton
+            title="Accept Request"
+            onPress={() => handleAccept(item._id)}
+            iconName="checkmark-circle-outline"
+            style={styles.acceptButton}
+            color="#28a745" // Green color for accept
+            loading={isAccepting === item._id} // Show loading only for this button
+            disabled={isAccepting !== null} // Disable all accept buttons while one is processing
+          />
+        </View>
     </View>
   );
 
-  const handleNavigate = (screen: keyof RootStackParamList) => {
-    setSidebarVisible(false);
-    switch (screen) {
-      case 'Home': navigation.navigate({ name: 'Home', params: { acceptedTaxiId: undefined }, merge: true }); break;
-      case 'requestRide': navigation.navigate({ name: 'requestRide', params: undefined, merge: true }); break;
-      case 'ViewTaxi': navigation.navigate({ name: 'ViewTaxi', params: undefined, merge: true }); break;
-      case 'ViewRoute': navigation.navigate({ name: 'ViewRoute', params: undefined, merge: true }); break;
-      case 'ViewRequests': break;
-      case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;
-      case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: undefined, merge: true }); break;
-      case 'Profile': navigation.navigate({ name: 'Profile', params: undefined, merge: true }); break;
-      case 'AcceptedRequest': navigation.navigate({ name: 'AcceptedRequest', params: undefined, merge: true }); break;
-      case 'AcceptedPassenger': navigation.navigate({ name: 'AcceptedPassenger', params: undefined, merge: true }); break;
-      case 'Auth': navigation.navigate({ name: 'Auth', params: undefined, merge: true }); break;
-      default: console.warn(`Attempted to navigate to unhandled screen: ${screen}`); break;
+ // Helper to style status text (can be reused/imported)
+ const getStatusStyle = (status: string): TextStyle => {
+    switch (status?.toLowerCase()) {
+      case 'pending': return { color: 'orange', fontWeight: 'bold' };
+      case 'accepted': return { color: 'green', fontWeight: 'bold' };
+      case 'cancelled': return { color: 'red', fontWeight: 'bold' };
+      default: return { color: '#555' };
     }
-  };
+ };
+
+
+  // Navigation Handler
+   const handleNavigate = (screen: keyof RootStackParamList) => {
+     setSidebarVisible(false);
+     // Navigation logic using switch... (same as previous examples)
+     switch (screen) {
+       case 'Home': navigation.navigate({ name: 'Home', params: { acceptedTaxiId: undefined }, merge: true }); break;
+       case 'requestRide': navigation.navigate({ name: 'requestRide', params: undefined, merge: true }); break;
+       case 'ViewTaxi': navigation.navigate({ name: 'ViewTaxi', params: undefined, merge: true }); break;
+       case 'ViewRoute': navigation.navigate({ name: 'ViewRoute', params: undefined, merge: true }); break;
+       case 'ViewRequests': break; // Already here
+       case 'LiveChat': navigation.navigate({ name: 'LiveChat', params: undefined, merge: true }); break;
+       case 'TaxiFareCalculator': navigation.navigate({ name: 'TaxiFareCalculator', params: undefined, merge: true }); break;
+       case 'TaxiManagement': navigation.navigate({ name: 'TaxiManagement', params: undefined, merge: true }); break;
+       case 'Profile': navigation.navigate({ name: 'Profile', params: undefined, merge: true }); break;
+       case 'AcceptedRequest': navigation.navigate({ name: 'AcceptedRequest', params: undefined, merge: true }); break;
+       case 'AcceptedPassenger': navigation.navigate({ name: 'AcceptedPassenger', params: undefined, merge: true }); break;
+       case 'Auth': navigation.navigate({ name: 'Auth', params: undefined, merge: true }); break;
+       default: console.warn(`Attempted to navigate to unhandled screen: ${screen}`); break;
+     }
+   };
 
   const toggleSidebar = () => { setSidebarVisible(!sidebarVisible); };
-
-  // Handler for toggling request type
-  const handleTypeToggle = (type: 'ride' | 'pickup') => {
-    // Only toggle if the type is different and not currently loading
-    if (selectedRequestType !== type && !isLoading) {
-      setSelectedRequestType(type);
-      // The useEffect hook will handle fetching data for the new type
-    }
-  };
 
   // --- Render Logic ---
   return (
     <LinearGradient colors={['#FFFFFF', '#E8F0FE']} style={styles.gradient}>
       <SafeAreaView style={styles.safeArea}>
-        <Sidebar isVisible={sidebarVisible} onClose={toggleSidebar} onNavigate={handleNavigate} activeScreen="ViewRequests" />
+          {/* Sidebar */}
+          <Sidebar isVisible={sidebarVisible} onClose={toggleSidebar} onNavigate={handleNavigate} activeScreen="ViewRequests" />
 
         <Animated.View style={[styles.mainContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.headerButton} onPress={toggleSidebar}><Ionicons name="menu" size={32} color="#003E7E" /></TouchableOpacity>
-            <Text style={styles.headerTitle}>Nearby Requests</Text>
-            {/* Right Header Button: Refresh */}
-            <TouchableOpacity style={styles.headerButton} onPress={() => fetchNearbyRequests(true)} disabled={isLoading}>
-              {isLoading ? <ActivityIndicator size="small" color="#003E7E" /> : <Ionicons name="refresh" size={28} color="#003E7E" />}
-            </TouchableOpacity>
-          </View>
-
-          {/* Request Type Toggle Buttons */}
-          <View style={styles.toggleContainer}>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                selectedRequestType === 'ride' && styles.toggleButtonActive,
-              ]}
-              onPress={() => handleTypeToggle('ride')}
-              disabled={isLoading} // Disable buttons while loading
-            >
-              <Ionicons name="car-sport-outline" size={20} color={selectedRequestType === 'ride' ? '#FFFFFF' : '#003E7E'} />
-              <Text style={[
-                styles.toggleButtonText,
-                selectedRequestType === 'ride' && styles.toggleButtonTextActive,
-              ]}>Rides</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                selectedRequestType === 'pickup' && styles.toggleButtonActive,
-              ]}
-              onPress={() => handleTypeToggle('pickup')}
-              disabled={isLoading} // Disable buttons while loading
-            >
-              <Ionicons name="location-outline" size={20} color={selectedRequestType === 'pickup' ? '#FFFFFF' : '#003E7E'} />
-              <Text style={[
-                styles.toggleButtonText,
-                selectedRequestType === 'pickup' && styles.toggleButtonTextActive,
-              ]}>Pickups</Text>
-            </TouchableOpacity>
-          </View>
-
+            {/* Header */}
+            <View style={styles.header}>
+              <TouchableOpacity style={styles.headerButton} onPress={toggleSidebar}><Ionicons name="menu" size={32} color="#003E7E" /></TouchableOpacity>
+              <Text style={styles.headerTitle}>Nearby Requests</Text>
+              {/* Right Header Button: Refresh */}
+               <TouchableOpacity style={styles.headerButton} onPress={() => fetchNearbyRequests(true)} disabled={isLoading}>
+                 {isLoading ? <ActivityIndicator size="small" color="#003E7E" /> : <Ionicons name="refresh" size={28} color="#003E7E" />}
+               </TouchableOpacity>
+            </View>
 
           {/* Main Content Area */}
           {isLoading && requests.length === 0 ? ( // Show loading only on initial load when list is empty
@@ -442,18 +381,18 @@ const ViewRequestScreen: React.FC = () => {
               renderItem={renderItem}
               contentContainerStyle={styles.listContentContainer}
               ListEmptyComponent={ // Styled empty state
-                <View style={styles.emptyListContainer}>
-                  <Ionicons name="search-circle-outline" size={50} color="#888" />
-                  <Text style={styles.emptyListText}>
-                    {`No nearby ${selectedRequestType} requests found.`}
-                    </Text>
-                  <Text style={styles.emptyListSubText}>Pull down to refresh or tap the refresh icon above.</Text>
-                </View>
+                  <View style={styles.emptyListContainer}>
+                    <Ionicons name="search-circle-outline" size={50} color="#888" />
+                    <Text style={styles.emptyListText}>No nearby requests found.</Text>
+                    <Text style={styles.emptyListSubText}>Pull down to refresh or tap the refresh icon above.</Text>
+                  </View>
               }
-              onRefresh={() => fetchNearbyRequests(true)} // Refresh uses the current selected type
+              // Optional: Add pull-to-refresh
+              onRefresh={() => fetchNearbyRequests(true)}
               refreshing={isLoading && requests.length > 0} // Show refresh indicator only when refreshing existing list
             />
           )}
+          {/* Removed separate Refresh button, added to header */}
         </Animated.View>
 
         {/* Custom Error Modal */}
@@ -471,180 +410,145 @@ const ViewRequestScreen: React.FC = () => {
 
 // --- Styles ---
 const styles = StyleSheet.create({
-  // Common Styles
+  // Common Styles (gradient, safeArea, mainContainer, header, etc.)
   gradient: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: 'transparent' },
   mainContainer: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingTop: Platform.OS === 'android' ? 15 : 10, paddingBottom: 10, width: '100%' },
-  headerButton: { padding: 8, minWidth: 40, alignItems: 'center', justifyContent: 'center' },
+  headerButton: { padding: 8, minWidth: 40, alignItems: 'center', justifyContent: 'center' }, // Centered icon
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#000000' },
-
-  // Toggle Styles
-  toggleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 15,
-    paddingBottom: 10,
-    backgroundColor: 'transparent',
-  },
-  toggleButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 20, // Pill shape
-    marginHorizontal: 5, // Space between buttons
-    borderWidth: 1,
-    borderColor: '#003E7E',
-    backgroundColor: '#FFFFFF',
-  },
-  toggleButtonActive: {
-    backgroundColor: '#003E7E',
-    borderColor: '#003E7E',
-  },
-  toggleButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#003E7E',
-    marginLeft: 5, // Space after icon
-  },
-  toggleButtonTextActive: {
-    color: '#FFFFFF',
-  },
-
 
   // List Styles
   listContentContainer: {
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    flexGrow: 1,
+      paddingHorizontal: 15,
+      paddingVertical: 10, // Add vertical padding
+      flexGrow: 1, // Ensure empty component takes space
   },
-  requestCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 15,
-    elevation: 3,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    overflow: 'hidden',
+  requestCard: { // Using sectionCard style as base
+      backgroundColor: '#FFFFFF',
+      borderRadius: 12,
+      marginBottom: 15,
+      elevation: 3,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      borderWidth: 1,
+      borderColor: '#E0E0E0',
+      overflow: 'hidden',
   },
   requestCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#E8F0FE',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#D0D8E8',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between', // Space out title and status
+      backgroundColor: '#E8F0FE',
+      paddingHorizontal: 15,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: '#D0D8E8',
   },
   requestCardTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#003E7E',
-    marginLeft: 8,
-    flex: 1,
+      fontSize: 16, // Slightly smaller title
+      fontWeight: 'bold',
+      color: '#003E7E',
+      marginLeft: 8, // Space after icon
+      flex: 1, // Allow title to take space
   },
-  requestStatus: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginLeft: 10,
-  },
+    requestStatus: {
+        fontSize: 14,
+        fontWeight: 'bold', // Handled by getStatusStyle
+        marginLeft: 10, // Space before status
+    },
   requestCardBody: {
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+      paddingHorizontal: 15,
+      paddingVertical: 10,
   },
-  requestInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 7,
+  requestInfoRow: { // Similar to taxiInfoRow
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 7, // Slightly more space
   },
   requestInfoIcon: {
-    marginRight: 10,
-    width: 20,
-    textAlign: 'center',
+      marginRight: 10,
+      width: 20,
+      textAlign: 'center',
   },
   requestInfoLabel: {
-    fontSize: 15,
-    color: '#555',
-    fontWeight: '500',
-    width: 90,
+      fontSize: 15,
+      color: '#555',
+      fontWeight: '500',
+      width: 90, // Adjusted width
   },
   requestInfoValue: {
-    fontSize: 15,
-    color: '#000',
-    fontWeight: '600',
-    flex: 1,
+      fontSize: 15,
+      color: '#000',
+      fontWeight: '600',
+      flex: 1,
   },
-   requestCardFooter: {
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    paddingTop: 5,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#EEEEEE',
-    marginTop: 5,
-  },
-  acceptButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    width: '80%',
-    maxWidth: 300,
-  },
+    requestCardFooter: {
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        paddingTop: 5, // Less top padding
+        alignItems: 'center', // Center button
+        borderTopWidth: 1,
+        borderTopColor: '#EEEEEE',
+        marginTop: 5,
+    },
+    acceptButton: {
+        paddingVertical: 10, // Adjust button size
+        paddingHorizontal: 20,
+        width: '80%', // Make button wider
+        maxWidth: 300,
+    },
 
-  // Empty List Styles
-  emptyListContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 30,
-    marginTop: 30,
-  },
-  emptyListText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#555',
-    textAlign: 'center',
-    marginTop: 15,
-  },
-  emptyListSubText: {
-    fontSize: 14,
-    color: '#777',
-    textAlign: 'center',
-    marginTop: 5,
-  },
+    // Empty List Styles (from TaxiManagement)
+    emptyListContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 30,
+        marginTop: 30, // Adjusted margin
+    },
+    emptyListText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#555',
+        textAlign: 'center',
+        marginTop: 15,
+    },
+     emptyListSubText: {
+        fontSize: 14,
+        color: '#777',
+        textAlign: 'center',
+        marginTop: 5,
+    },
 
-  // Action Button Styles
-  actionButtonBase: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2 },
-  actionButtonIcon: { marginRight: 10 },
-  actionButtonText: { fontSize: 16, fontWeight: '600' },
-  actionButtonDisabled: { backgroundColor: '#A0A0A0', elevation: 0, shadowOpacity: 0 },
+  // Action Button Styles (Copied from previous screens)
+    actionButtonBase: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2 },
+    actionButtonIcon: { marginRight: 10 },
+    actionButtonText: { fontSize: 16, fontWeight: '600' },
+    actionButtonDisabled: { backgroundColor: '#A0A0A0', elevation: 0, shadowOpacity: 0 },
 
-  // Sidebar Styles (Copied from previous screens)
-  sidebarInternal: { position: 'absolute', top: 0, left: 0, bottom: 0, width: 300, backgroundColor: '#003E7E', zIndex: 1000, elevation: Platform.OS === 'android' ? 10 : 0, shadowColor: '#000', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.3, shadowRadius: 5, paddingTop: Platform.OS === 'ios' ? 20 : 0 },
-  sidebarCloseButtonInternal: { position: 'absolute', top: Platform.OS === 'android' ? 45 : 55, right: 15, zIndex: 1010, padding: 5 },
-  sidebarHeaderInternal: { alignItems: 'center', marginBottom: 30, paddingTop: 60 },
-  sidebarLogoIconInternal: { marginBottom: 10 },
-  sidebarTitleInternal: { fontSize: 26, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
-  sidebarButtonInternal: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 20, borderRadius: 8, marginBottom: 8, marginHorizontal: 10 },
-  sidebarButtonActiveInternal: { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
-  sidebarButtonTextInternal: { fontSize: 16, marginLeft: 15, color: '#E0EFFF', fontWeight: '600' },
-  sidebarButtonTextActiveInternal: { color: '#FFFFFF', fontWeight: 'bold' },
+  // --- Sidebar Styles (Copied from previous screens) ---
+    sidebarInternal: { position: 'absolute', top: 0, left: 0, bottom: 0, width: 300, backgroundColor: '#003E7E', zIndex: 1000, elevation: Platform.OS === 'android' ? 10: 0, shadowColor: '#000', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.3, shadowRadius: 5, paddingTop: Platform.OS === 'ios' ? 20 : 0 },
+    sidebarCloseButtonInternal: { position: 'absolute', top: Platform.OS === 'android' ? 45 : 55, right: 15, zIndex: 1010, padding: 5 },
+    sidebarHeaderInternal: { alignItems: 'center', marginBottom: 30, paddingTop: 60 },
+    sidebarLogoIconInternal: { marginBottom: 10 },
+    sidebarTitleInternal: { fontSize: 26, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
+    sidebarButtonInternal: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 20, borderRadius: 8, marginBottom: 8, marginHorizontal: 10 },
+    sidebarButtonActiveInternal: { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+    sidebarButtonTextInternal: { fontSize: 16, marginLeft: 15, color: '#E0EFFF', fontWeight: '600' },
+    sidebarButtonTextActiveInternal: { color: '#FFFFFF', fontWeight: 'bold' },
 
-  // Loading Styles
-  loadingGradient: { flex: 1 },
-  loadingContainerInternal: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingTextInternal: { marginTop: 15, fontSize: 16, color: '#003E7E', fontWeight: '500' },
+  // --- Loading Styles ---
+    loadingGradient: { flex: 1 },
+    loadingContainerInternal: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    loadingTextInternal: { marginTop: 15, fontSize: 16, color: '#003E7E', fontWeight: '500' },
 
-  // Custom Modal Styles
+  // --- Custom Modal Styles ---
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent background
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -653,11 +557,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 20,
-    width: '90%',
-    maxWidth: 400,
+    width: '90%', // Adjust width as needed
+    maxWidth: 400, // Max width for larger screens
     alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
+    elevation: 5, // Android shadow
+    shadowColor: '#000', // iOS shadow
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -665,7 +569,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#D32F2F',
+    color: '#D32F2F', // Red for error
     marginBottom: 15,
     textAlign: 'center',
   },

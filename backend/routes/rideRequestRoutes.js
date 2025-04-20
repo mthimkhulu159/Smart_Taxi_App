@@ -11,9 +11,9 @@ router.post("/ride", rideRequestController.createRideRequest);
 
 router.get("/driver/ride-requests", rideRequestController.getNearbyRequestsForDriver);
 router.get("/driver/pickup-requests", rideRequestController.getPickupByDriver);
-router.get("/acceptedTaxiDetails", rideRequestController.getAcceptedTaxiDetails);
+router.get("/acceptedRequests", rideRequestController.getAcceptedTaxiDetails);
+router.get("/pendingRequests", rideRequestController.getPendingRideRequests);
 router.get("/acceptedPassengerDetails", rideRequestController.getDriverAcceptedPassengerDetails);
-
 router.patch("/accept/:requestId", rideRequestController.acceptRequest)
 
 

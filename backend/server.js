@@ -1,69 +1,106 @@
-// server.js (Main server setup)
+// server.js
 const express = require('express');
-const http = require('http'); // Import http module
+const app = express();
+const http = require('http');
 const dotenv = require('dotenv').config();
+
+// Middleware & Config
 const helmetMiddleware = require('./middlewares/helmetMiddleware');
-const { initializeSocket } = require('./config/socket'); 
-const rateLimiterMiddleware = require('./middlewares/rateLimiterMiddleware');
+const { initializeSocket } = require('./config/socket');
 const corsMiddleware = require('./middlewares/corsMiddleware');
 const forceHttpsMiddleware = require('./middlewares/forceHttpsMiddleware');
 const errorHandler = require("./middlewares/errorHandlerMiddleware");
-const { validateSignup, validateErrors } = require('./middlewares/validateInputMiddleware');
+const { apiLimiter, loginLimiter } = require('./middlewares/rateLimiterMiddleware');
 const gracefulShutdown = require('./middlewares/dbDisconnectMiddleware');
-const getClientIP = require('./utils/ipUtils');
 const { connectDB } = require('./config/db');
 const passport = require("./config/passport");
+
+// Routes
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require("./routes/authRoutes");
 const taxiRoutes = require('./routes/taxiRoutes');
 const taxirouteRoutes = require("./routes/taxirouteRoutes");
 const rideRequestRoutes = require('./routes/rideRequestRoutes');
-const chatRoutes = require('./routes/chatRoutes'); // Import chat routes
+const chatRoutes = require('./routes/chatRoutes');
 const chatGroupRoutes = require('./routes/taxiDriverGroupRoutes');
 
-const app = express();
 
+// --- Process Handlers for Robustness ---
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
-  process.exit(1);
+  gracefulShutdown(true)
+   .then(() => process.exit(1))
+   .catch(() => process.exit(1));
 });
-
 
 process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+ console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
 
-// Middleware setup
-app.use(express.json());
+
+// --- Express App Configuration ---
+
+// Set trust proxy based on environment
+// True if running in production behind a trusted proxy that sets X-Forwarded-For.
+app.set('trust proxy', 1);
+
+
+// --- Middleware Setup ---
+app.use(express.json()); // Parse JSON request bodies
+
+// Apply core security and CORS middleware
 app.use(helmetMiddleware());
-app.use(rateLimiterMiddleware);
 app.use(corsMiddleware);
-app.use(forceHttpsMiddleware);
 
-const server = http.createServer(app); // Create HTTP server
-const io = initializeSocket(server);
-connectDB();
+// Force HTTPS in production environments
+if (process.env.NODE_ENV === 'production') {
+ app.use(forceHttpsMiddleware);
+}
 
-// Graceful shutdown
-gracefulShutdown();
 
+// --- Authentication Middleware ---
 app.use(passport.initialize());
-app.use("/auth", authRoutes);
+
+
+// --- Create HTTP Server & Initialize Socket.IO ---
+const server = http.createServer(app); // Create HTTP server
+initializeSocket(server); // Initialize Socket.IO on the HTTP server
+
+
+// --- Database Connection ---
+connectDB(); // Connect to MongoDB
+
+
+// --- HTTP Rate Limiting and Route Mounting ---
+// Apply login limiter specifically to auth routes
+app.use("/auth", loginLimiter, authRoutes);
+
+// Apply general API limiter to routes starting with /api.
+// Routes mounted after this will be rate limited by apiLimiter.
+app.use("/api/", apiLimiter);
+
+// Mount your other API routes
 app.use('/api/users', userRoutes);
 app.use('/api/taxis', taxiRoutes);
-app.use('/api/chat', chatRoutes); //chat routes
-app.use('/api/chatGroups', chatGroupRoutes); // chat groups route
+app.use('/api/chat', chatRoutes);
+app.use('/api/chatGroups', chatGroupRoutes);
 app.use("/api/admin/routes", taxirouteRoutes);
-app.use("/api/routes", taxirouteRoutes)
+app.use("/api/routes", taxirouteRoutes); // Check if this is duplicated or intended for different access
+
 app.use('/api/rideRequest', rideRequestRoutes);
 
+
+// --- Final Error Handling Middleware ---
+// Must be the last middleware applied
 app.use(errorHandler);
 
-// Start the server
+
+// --- Server Startup ---
 const port = process.env.PORT || 5000;
-server.listen(port, () => { // Use server.listen()
-  console.log(`Server is running on port ${port}`);
+server.listen(port, () => {
+ console.log(`Server is running on port ${port}`);
 });
 
 
-exports.module = server
+// --- Module Export ---
+module.exports = server;
