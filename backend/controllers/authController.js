@@ -25,7 +25,7 @@ const sendEmail = async (email, resetToken) => {
 // Register User
 exports.registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role = 'passenger' } = req.body; // Default role is 'passenger'
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'All fields are required' });
@@ -34,7 +34,7 @@ exports.registerUser = async (req, res) => {
     const userExists = await User.findOne({ email });
     if (userExists) return res.status(400).json({ message: 'Email already in use' });
 
-    const newUser = await User.create({ name, email, password });
+    const newUser = await User.create({ name, email, password, role });
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -42,13 +42,16 @@ exports.registerUser = async (req, res) => {
         id: newUser._id,
         name: newUser.name,
         email: newUser.email,
+        role: newUser.role,
       },
-      token: generateToken(newUser._id, newUser.email),
+      token: generateToken(newUser._id, newUser.email, newUser.role, newName.name), // Include the role in the token
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
+
 
 // Login User
 exports.loginUser = async (req, res) => {
@@ -65,10 +68,6 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    if (!user.password) {
-      return res.status(401).json({ message: 'Please log in with Google' });
-    }
-
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid email or password' });
@@ -80,9 +79,9 @@ exports.loginUser = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: user.role, // Include role in response
       },
-      token: generateToken(user._id, user.email),
+      token: generateToken(user._id, user.email, user.role, user.name), // Include role in the token
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
