@@ -18,7 +18,7 @@ import { apiUrl } from "../api/apiUrl"; // Adjust path if needed
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
-import { RootStackParamList } from "../../types/navigation"; // Adjust path as needed
+import { RootStackParamList } from "../types/navigation"; // Adjust path as needed
 
 const { width } = Dimensions.get("window");
 

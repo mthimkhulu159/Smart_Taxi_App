@@ -1,6 +1,5 @@
 const express = require('express');
 const { protect } = require('../middlewares/authMiddleware');
-const { authorizeRoles } = require('../middlewares/roleMiddleware');
 const userController = require('../controllers/userController'); // Import entire controller
 
 const router = express.Router();
@@ -13,5 +12,9 @@ router.get("/get-user", userController.getUserDetails);
 router.put('/update-details', userController.updateUserDetails);
 
 router.put('/upgrade-role', userController.upgradeToDriver);
+
+router.post('/delete-account', userController.requestAccountDeletion);
+router.post('/cancel-delete-account', userController.cancelAccountDeletion);
+
 module.exports = router;
  

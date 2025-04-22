@@ -155,3 +155,35 @@ SyntaxError: Unexpected token ')'
     at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/authRoutes.js:3:24)
     at Module._compile (node:internal/modules/cjs/loader:1529:14)
     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-04-22 15:15:25] ERROR: uncaughtException: Unexpected identifier 'URL'
+/workspaces/Smart_Taxi_App/backend/controllers/taxiController.js:517
+Request URL:
+        ^^^
+
+SyntaxError: Unexpected identifier 'URL'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/taxiRoutes.js:3:24)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-04-22 15:42:55] ERROR: uncaughtException: Unexpected token '?'
+/workspaces/Smart_Taxi_App/backend/controllers/taxiController.js:551
+ ? };
+ ^
+
+SyntaxError: Unexpected token '?'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/taxiRoutes.js:3:24)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)

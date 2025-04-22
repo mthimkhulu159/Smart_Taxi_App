@@ -18,12 +18,29 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
-import { RootStackParamList } from "../../types/navigation"; // Adjust path as needed
 import { fetchData } from "../api/api"; // Adjust path as needed
 import { useAuth } from "../context/authContext"; // Adjust path as needed
 import { apiUrl } from "../api/apiUrl"; // Adjust path as needed
 
+
+
+
 const { width, height } = Dimensions.get("window");
+
+// types/navigation.ts
+export type RootStackParamList = {
+    Home: undefined;
+    Auth: undefined; // Other screens in your stack can be added here
+    RideRequest: undefined; // No params for RideRequest screen
+    DriverDashboard: undefined;
+    Profile: undefined;
+    Help: undefined;
+    Settings: undefined;
+    AcceptedRequest: undefined;
+    ForgotPassword: undefined;
+  };
+  
+
 
 // --- Color Palette (Keep as defined before) ---
 const colors = {

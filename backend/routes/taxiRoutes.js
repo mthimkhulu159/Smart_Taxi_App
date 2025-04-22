@@ -1,6 +1,5 @@
 const express = require("express");
 const { protect } = require("../middlewares/authMiddleware");
-const { authorizeRoles } = require("../middlewares/roleMiddleware");
 const taxiController = require("../controllers/taxiController");
 
 const router = express.Router();
@@ -8,34 +7,47 @@ const router = express.Router();
 // Protect all routes with authentication
 router.use(protect);
 
-// Driver Taxi Management
+// === Driver Taxi Management ===
+
+// Route to add a taxi
 router.post("/addTaxi", taxiController.addTaxi);
 
-// Search for taxis by start & end location
-router.get("/search", taxiController.searchTaxis);
-// Get all taxis assigned to a driver
+// Route to get all taxis assigned to a driver
 router.get("/driver-taxi", taxiController.getDriverTaxis);
-  
+
+// === Taxi Monitoring ===
+
 // Route for monitoring taxi updates (for passengers)
 router.get("/:taxiId/monitor", taxiController.monitorTaxi);
 
+// === Taxi Updates ===
 
-// Endpoint to fetch stops for a taxi
-router.get('/:taxiId/stops', taxiController.getStopsForTaxi);
+// Route to delete a taxi
+router.delete("/:taxiId/delete", taxiController.deleteTaxi);
 
-// Endpoint to update current stop manually
-router.put('/:taxiId/currentStopManual', taxiController.updateCurrentStopManual);
+// Route to update taxi details (e.g., route, capacity, return pickups)
+router.patch("/taxis/:taxiId", taxiController.updateTaxiDetails);
 
+// Route to manually update current stop
+router.put("/:taxiId/currentStopManual", taxiController.updateCurrentStopManual);
 
-
-// Route for updating the taxi's current stop
+// Route for updating the taxi's current stop (based on route)
 router.put("/:taxiId/currentStop", taxiController.updateCurrentStop);
 
-// Route for updating the taxi's load
+// Route to update the taxi's load (current passengers)
 router.put("/:taxiId/load", taxiController.updateLoad);
 
-// Route for updating the taxi's status
+// Route to update the taxi's status (available, roaming, etc.)
 router.put("/:taxiId/status", taxiController.updateStatus);
 
+// === Taxi Search ===
+
+// Route to search for taxis by start & end location
+router.get("/search", taxiController.searchTaxis);
+
+// === Taxi Stops ===
+
+// Route to fetch stops for a taxi
+router.get("/:taxiId/stops", taxiController.getStopsForTaxi);
 
 module.exports = router;

@@ -25,9 +25,10 @@ import { useAuth } from '../context/authContext';
 import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
 import { apiUrl } from '../api/apiUrl';
 import { RootStackParamList } from '../types/navigation';
-// import ErrorPopup from '../components/ErrorPopup'; // Removed ErrorPopup import
 import CustomConfirm from '../components/CustomConfirm'; // Import the CustomConfirm component
 import CustomPopup from '../components/CustomPopup'; // Import the new CustomPopup component
+import AccountDeletionButton from '../components/AccountDeletion';
+
 // --- Constants ---
 const { width: windowWidth } = Dimensions.get('window');
 
@@ -49,6 +50,7 @@ interface UserProfile {
     role: string[];
     profilePic?: string;
     roleUpgradeRequested: boolean;
+    isDeletionRequested: boolean;
 }
 
 // --- Color Palette (Updated slightly for consistency with ErrorPopup) ---
@@ -142,6 +144,8 @@ const ProfileScreen: React.FC = () => {
     const [currentStop, setCurrentStop] = useState('');
     const [routeName, setRouteName] = useState('');
     const [sidebarVisible, setSidebarVisible] = useState(false);
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+    const [allowReturnPickups, setAllowReturnPickups] = useState(false);
 
     // --- State for Custom Popup ---
     const [isPopupVisible, setIsPopupVisible] = useState(false);
@@ -246,6 +250,15 @@ const ProfileScreen: React.FC = () => {
              slideAnim.setValue(30);
         }
     }, [isLoading, user, fadeAnim, slideAnim]); // Add user dependency
+
+
+    
+    // Callback to update profile state if deletion status changes via the child component
+    const handleDeletionStatusUpdate = (isPending: boolean) => {
+        if (userProfile) {
+            setUserProfile({ ...userProfile, isDeletionRequested: isPending });
+        }
+    };
 
     // --- Handlers ---
 
@@ -422,70 +435,76 @@ const ProfileScreen: React.FC = () => {
     // --- Taxi Registration Handler ---
     const handleAddTaxi = async () => {
         closePopup(); // Close any previous popups
-
-        // Client-side validation using showPopup
+    
+        // Client-side validation
         if (!numberPlate.trim() || !capacity.trim() || !routeName.trim() || !currentStop.trim()) {
             showPopup('Please fill in all required taxi details (Number Plate, Capacity, Route, Current Stop).', 'warning');
             return;
         }
+    
         const parsedCapacity = parseInt(capacity, 10);
         if (isNaN(parsedCapacity) || parsedCapacity <= 0) {
             showPopup('Please enter a valid positive number for capacity.', 'warning');
             return;
         }
-
+    
         setIsAddingTaxi(true);
+    
         try {
             const body = {
-                    numberPlate: numberPlate.trim().toUpperCase(), // Standardize format
-                    routeName: routeName.trim(),
-                    capacity: parsedCapacity,
-                    currentStop: currentStop.trim(),
+                numberPlate: numberPlate.trim().toUpperCase(),
+                routeName: routeName.trim(),
+                capacity: parsedCapacity,
+                currentStop: currentStop.trim(),
+                allowReturnPickups: allowReturnPickups || false, // Make sure this comes from form state
             };
-            console.log("Adding taxi with data:", body); // Log data being sent
+    
+            console.log("Adding taxi with data:", body);
+    
             const response = await fetchData(apiUrl, 'api/taxis/addTaxi', {
-                    method: 'POST',
-                    body: body,
+                method: 'POST',
+                body: body,
             });
-
-            console.log("Add taxi response:", response); // Log response
-
-            if (response?.taxi?._id) { // Check for a key property of the added taxi
+    
+            console.log("Add taxi response:", response);
+    
+            if (response?.taxi?._id) {
                 showPopup(`Taxi ${response.taxi.numberPlate} added successfully!`, 'success');
-                // Clear form and hide it
                 setNumberPlate('');
                 setCapacity('');
                 setCurrentStop('');
                 setRouteName('');
+                setAllowReturnPickups(false); // Reset toggle if needed
                 setIsTaxiFormVisible(false);
-                // Optionally: Refresh user data or navigate if needed
             } else {
-                // Throw error if response doesn't look successful
                 throw new Error(response?.message || 'Failed to add taxi. Response format incorrect.');
             }
         } catch (error: any) {
             console.error('Error adding taxi:', error);
             let displayMessage = "Failed to add taxi. Please try again.";
             let detailedErrorMessage: string | undefined;
-            if (error?.response?.data?.message) { // Check for specific backend message
+    
+            if (error?.response?.data?.message) {
                 displayMessage = error.response.data.message;
                 detailedErrorMessage = JSON.stringify(error.response.data);
             } else if (error?.data?.message) {
-                 displayMessage = error.data.message;
-                 detailedErrorMessage = JSON.stringify(error.data);
+                displayMessage = error.data.message;
+                detailedErrorMessage = JSON.stringify(error.data);
             } else if (error?.message) {
-                 displayMessage = error.message; // Fallback to generic error message
-                 detailedErrorMessage = error.message;
+                displayMessage = error.message;
+                detailedErrorMessage = error.message;
             }
-            // Handle specific common errors if needed
+    
             if (displayMessage.includes('duplicate key error') && displayMessage.includes('numberPlate')) {
                 displayMessage = `A taxi with number plate ${numberPlate.trim().toUpperCase()} already exists.`;
             }
+    
             showPopup(displayMessage, 'error', detailedErrorMessage, handleAddTaxi);
         } finally {
             setIsAddingTaxi(false);
         }
     };
+    
 
     // --- Navigation Handlers --- (Keep as is)
     const handleNavigate = (screen: keyof RootStackParamList) => {
@@ -556,11 +575,6 @@ const ProfileScreen: React.FC = () => {
             );
         };
 
-
-    // --- Main JSX (Successful Load) ---
-    // This should only render if 'user' is guaranteed to be non-null
-    // The check `if (!user && !isLoading)` above handles the error case.
-    // Adding an explicit check here for safety, though theoretically covered.
     if (!user) return <Loading />; // Or return error view again
 
     return (
@@ -637,6 +651,11 @@ const ProfileScreen: React.FC = () => {
                             )}
                             {/* Logout Button */}
                             <ActionButton title="Logout" onPress={handleLogout} iconName="log-out-outline" color={colors.error} style={{ marginBottom: 10 }} />
+                            {/* Account Deletion Button */}
+                            <AccountDeletionButton
+                              initialDeletionStatus={userProfile?.isDeletionRequested ?? false}
+                              onDeletionStatusChange={handleDeletionStatusUpdate}
+                            />
                         </View>
 
                         {/* Add Taxi Section (Only for Drivers) */}
@@ -653,6 +672,15 @@ const ProfileScreen: React.FC = () => {
                                         <TextInput style={styles.input} placeholder="Capacity *" placeholderTextColor="#aaa" value={capacity} keyboardType="numeric" onChangeText={setCapacity} />
                                         <TextInput style={styles.input} placeholder="Current Stop / Rank *" placeholderTextColor="#aaa" value={currentStop} onChangeText={setCurrentStop} />
                                         <TextInput style={styles.input} placeholder="Primary Route Name *" placeholderTextColor="#aaa" value={routeName} onChangeText={setRouteName} />
+                                        <label>
+                                           <input
+                                           type="checkbox"
+                                           checked={allowReturnPickups}
+                                           onChange={(e) => setAllowReturnPickups(e.target.checked)}
+                                           />
+                                           Allow Return Pickups
+                                        </label>
+
                                         <ActionButton title="Register Taxi" onPress={handleAddTaxi} iconName="add-circle-outline" loading={isAddingTaxi} style={{ marginTop: 10 }} disabled={isAddingTaxi} />
                                     </Animated.View>
                                 )}
@@ -684,214 +712,48 @@ const ProfileScreen: React.FC = () => {
 };
 
 
-// --- Styles --- (Keep existing styles, ensure they use the 'colors' object)
 const styles = StyleSheet.create({
-    gradient: {
-        flex: 1,
-    },
-    safeArea: {
-        flex: 1,
-        paddingTop: Platform.OS === 'android' ? 25 : 0, // Adjust status bar padding
-    },
-    mainContainer: {
-        flex: 1,
-        // Remove marginHorizontal if safeArea handles padding
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 15,
-        paddingVertical: 10,
-        // backgroundColor: colors.white, // Optional: Header background
-        borderBottomWidth: 1,
-        borderBottomColor: colors.secondary,
-    },
-    headerTitle: {
-        fontSize: 22,
-        color: colors.primary,
-        fontWeight: 'bold',
-    },
-    headerButton: {
-        padding: 8,
-    },
-    scrollContent: {
-        padding: 20,
-    },
-    profilePicContainer: {
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    profilePic: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: colors.secondary, // Placeholder background
-    },
-    sectionCard: {
-        backgroundColor: colors.white,
-        borderRadius: 10,
-        padding: 15,
-        marginBottom: 20,
-        shadowColor: "#000",
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
-        elevation: 3,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 15,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: colors.text,
-    },
-    editButtonInline: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.secondary,
-        paddingVertical: 5,
-        paddingHorizontal: 10,
-        borderRadius: 5,
-    },
-    editButtonText: {
-        marginLeft: 5,
-        color: colors.primary,
-        fontSize: 16,
-    },
-    infoContainer: {
-        // Styles for displaying user info
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    infoIcon: {
-        marginRight: 10,
-        width: 20, // Adjust width to prevent text overlap
-        alignItems: 'center', // Center the icon within its space
-    },
-    infoLabel: {
-        fontWeight: 'bold',
-        color: colors.text,
-        marginRight: 5,
-        flexShrink: 0, // Prevent label from shrinking too much
-    },
-    infoValue: {
-        color: colors.text,
-        flexShrink: 1, // Allow value to shrink and wrap
-    },
-    editingContainer: {
-        marginVertical: 10,
-    },
-    input: {
-        backgroundColor: colors.secondary,
-        borderRadius: 5,
-        padding: 10,
-        marginBottom: 10,
-        color: colors.text,
-    },
-    editActionsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-    },
-    editActionButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 15,
-        borderRadius: 5,
-        marginLeft: 10,
-    },
-    cancelButton: {
-        backgroundColor: colors.white,
-        borderWidth: 1,
-        borderColor: colors.primary,
-    },
-    cancelButtonText: {
-        color: colors.primary,
-    },
-    saveButton: {
-        backgroundColor: colors.primary,
-    },
-    saveButtonText: {
-        color: colors.white,
-    },
-    actionButtonBase: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 12,
-        borderRadius: 8,
-    },
-    actionButtonIcon: {
-        marginRight: 8,
-    },
-    actionButtonText: {
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    loadingGradient: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingContainerInternal: {
-        alignItems: 'center',
-    },
-    loadingTextInternal: {
-        marginTop: 10,
-        fontSize: 16,
-        color: colors.primary,
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    errorText: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: colors.error,
-        marginTop: 20,
-        textAlign: 'center',
-    },
-    errorSubText: {
-        fontSize: 16,
-        color: colors.text,
-        marginTop: 10,
-        textAlign: 'center',
-    },
-    logoutButtonError: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.error,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 8,
-        marginTop: 20,
-    },
-    logoutButtonTextError: {
-        color: colors.white,
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    addTaxiHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 10,
-    },
-    taxiFormContainer: {
-        marginTop: 15,
-    },
-});
+    gradient: { flex: 1 },
+    safeArea: { flex: 1, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+    mainContainer: { flex: 1 },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.secondary },
+    headerTitle: { fontSize: 22, color: colors.primary, fontWeight: 'bold' },
+    headerButton: { padding: 8 },
+    scrollContent: { padding: 20 },
+    profilePicContainer: { alignItems: 'center', marginBottom: 20 },
+    profilePic: { width: 100, height: 100, borderRadius: 50, backgroundColor: colors.secondary },
+    sectionCard: { backgroundColor: colors.white, borderRadius: 10, padding: 15, marginBottom: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 3 },
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+    sectionTitle: { fontSize: 18, fontWeight: 'bold', color: colors.text },
+    editButtonInline: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.secondary, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 5 },
+    editButtonText: { marginLeft: 5, color: colors.primary, fontSize: 16 },
+    infoContainer: {},
+    infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+    infoIcon: { marginRight: 10, width: 20, alignItems: 'center' },
+    infoLabel: { fontWeight: 'bold', color: colors.text, marginRight: 5, flexShrink: 0 },
+    infoValue: { color: colors.text, flexShrink: 1 },
+    editingContainer: { marginVertical: 10 },
+    input: { backgroundColor: colors.secondary, borderRadius: 5, padding: 10, marginBottom: 10, color: colors.text },
+    editActionsContainer: { flexDirection: 'row', justifyContent: 'flex-end' },
+    editActionButton: { paddingVertical: 10, paddingHorizontal: 15, borderRadius: 5, marginLeft: 10 },
+    cancelButton: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.primary },
+    cancelButtonText: { color: colors.primary },
+    saveButton: { backgroundColor: colors.primary },
+    saveButtonText: { color: colors.white },
+    actionButtonBase: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 8 },
+    actionButtonIcon: { marginRight: 8 },
+    actionButtonText: { fontSize: 16, fontWeight: 'bold' },
+    loadingGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    loadingContainerInternal: { alignItems: 'center' },
+    loadingTextInternal: { marginTop: 10, fontSize: 16, color: colors.primary },
+    errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+    errorText: { fontSize: 20, fontWeight: 'bold', color: colors.error, marginTop: 20, textAlign: 'center' },
+    errorSubText: { fontSize: 16, color: colors.text, marginTop: 10, textAlign: 'center' },
+    logoutButtonError: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.error, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, marginTop: 20 },
+    logoutButtonTextError: { color: colors.white, fontSize: 16, fontWeight: 'bold' },
+    addTaxiHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+    taxiFormContainer: { marginTop: 15 },
+  });
+  
 
 export default ProfileScreen;

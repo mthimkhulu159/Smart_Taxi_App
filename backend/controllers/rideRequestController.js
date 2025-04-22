@@ -40,15 +40,25 @@ exports.createRideRequest = async (req, res) => {
 
     await newRideRequest.save();
 
-    const taxisOnRoute = await Taxi.find({ routeId: route._id, status: "on trip" });
-    const eligibleTaxis = taxisOnRoute.filter((taxi) => {
-      const taxiStop = route.stops.find((s) => s.name === taxi.currentStop);
-      return taxiStop && taxiStop.order < startStopObj.order;
+    const taxisOnRoute = await Taxi.find({
+      routeId: route._id,
+      status: "on trip",
     });
 
-    // **Emit notification to connected drivers**
-    const io = getIo();
+    const eligibleTaxis = taxisOnRoute.filter((taxi) => {
+      const taxiStop = route.stops.find((s) => s.name === taxi.currentStop);
+      if (!taxiStop) return false;
 
+      if (taxi.direction === "forward") {
+        return taxiStop.order < startStopObj.order;
+      } else if (taxi.direction === "return") {
+        return taxiStop.order > startStopObj.order;
+      }
+
+      return false;
+    });
+
+    const io = getIo();
     eligibleTaxis.forEach((taxi) => {
       const driverSocketId = getUserSocketId(taxi.driverId.toString());
       if (driverSocketId) {
@@ -130,7 +140,7 @@ exports.acceptRequest = async (req, res) => {
       return res.status(400).json({ error: "Request is no longer pending." });
     }
 
-    const taxi = await Taxi.findOne({ driverId: driverId });
+    const taxi = await Taxi.findOne({ driverId });
     if (!taxi) {
       return res.status(404).json({ error: "Taxi for this driver not found." });
     }
@@ -139,25 +149,35 @@ exports.acceptRequest = async (req, res) => {
       return res.status(400).json({ error: "Taxi is not on the correct route." });
     }
 
+    const startStop = rideRequest.route.stops.find(s => s.name === rideRequest.startingStop);
+    const currentStop = rideRequest.route.stops.find(s => s.name === taxi.currentStop);
+
+    if (!startStop || !currentStop) {
+      return res.status(400).json({ error: "Invalid stop information." });
+    }
+
     if (rideRequest.requestType === "ride") {
       if (taxi.status !== "on trip") {
         return res.status(400).json({ error: "Taxi is not available for ride requests." });
       }
 
-      const taxiStop = rideRequest.route.stops.find((s) => s.name === taxi.currentStop);
-      const passengerStop = rideRequest.route.stops.find((s) => s.name === rideRequest.startingStop);
-
-      if (!taxiStop || !passengerStop) {
-        return res.status(400).json({ error: "Invalid route stops data." });
+      if (taxi.direction === "forward") {
+        if (currentStop.order >= startStop.order) {
+          return res.status(400).json({ error: "Taxi has already passed the passenger's stop (forward)." });
+        }
+      } else if (taxi.direction === "return") {
+        if (currentStop.order <= startStop.order) {
+          return res.status(400).json({ error: "Taxi has already passed the passenger's stop (return)." });
+        }
+      } else {
+        return res.status(400).json({ error: "Taxi direction not specified." });
       }
 
-      if (taxiStop.order > passengerStop.order) {
-        return res.status(400).json({ error: "Taxi has already passed the passenger's starting stop." });
-      }
     } else if (rideRequest.requestType === "pickup") {
       if (taxi.status !== "roaming") {
         return res.status(400).json({ error: "Taxi is not available for pickup requests." });
       }
+      // Direction doesn't matter for pickup
     } else {
       return res.status(400).json({ error: "Unsupported request type." });
     }
@@ -166,24 +186,25 @@ exports.acceptRequest = async (req, res) => {
     rideRequest.taxi = taxi._id;
     await rideRequest.save();
 
-    // **Emit notification to the passenger**
     const io = getIo();
     const passengerSocketId = getUserSocketId(rideRequest.passenger.toString());
-    if(passengerSocketId){
-        io.to(passengerSocketId).emit("requestAccepted", {
-          requestId: rideRequest._id,
-          driverId: driverId,
-          taxi: taxi._id,
-          message: "Your ride request has been accepted!",
-        });
+    if (passengerSocketId) {
+      io.to(passengerSocketId).emit("requestAccepted", {
+        requestId: rideRequest._id,
+        driverId,
+        taxi: taxi._id,
+        message: "Your ride request has been accepted!",
+      });
     }
 
     return res.status(200).json({ message: "Request accepted.", rideRequest });
+
   } catch (err) {
     console.error("Error in acceptRequest:", err);
     return res.status(500).json({ error: "Server error." });
   }
 };
+
 
 exports.getNearbyRequestsForDriver = async (req, res) => {
   try {
@@ -216,37 +237,44 @@ exports.getNearbyRequestsForDriver = async (req, res) => {
     if (!taxiCurrentStopObj) {
       return res.status(400).json({ error: "Taxi's current stop is not found in the route stops." });
     }
-    const currentOrder = taxiCurrentStopObj.order;
-    const nextOrder = currentOrder + 1;
 
-    // Check if the taxi status is "available" or "on trip" before proceeding
+    const currentOrder = taxiCurrentStopObj.order;
+
     if (!["available", "on trip"].includes(taxi.status)) {
       return res.status(400).json({ error: "Taxi must be 'available' or 'on trip' to view ride requests." });
     }
 
     const rideRequests = await RideRequest.find({
       route: route._id,
-      status: "pending", // Only show pending requests
-      requestType: "ride", // Only ride requests
+      status: "pending",
+      requestType: "ride",
     });
 
     const nearbyRequests = rideRequests.filter((request) => {
       if (!request.startingStop || !request.destinationStop) return false;
 
       const requestStartStop = route.stops.find((s) => s.name === request.startingStop);
-      const requestDestStop = route.stops.find((s) => s.name === request.destinationStop);
+      if (!requestStartStop) return false;
 
-      if (!requestStartStop || !requestDestStop) return false;
+      const requestOrder = requestStartStop.order;
 
-      return requestStartStop.order === currentOrder || requestStartStop.order === nextOrder;
+      if (taxi.direction === "forward") {
+        return requestOrder === currentOrder || requestOrder > currentOrder;
+      } else if (taxi.direction === "return") {
+        return requestOrder === currentOrder || requestOrder < currentOrder;
+      }
+
+      return false;
     });
 
     return res.status(200).json({ rideRequests: nearbyRequests });
+
   } catch (err) {
     console.error("Error in getNearbyRequestsForDriver:", err);
     return res.status(500).json({ error: "Server error." });
   }
 };
+
 
 
 exports.getPickupByDriver = async (req, res) => {

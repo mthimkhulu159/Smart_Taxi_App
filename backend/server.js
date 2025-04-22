@@ -14,7 +14,7 @@ const { apiLimiter, loginLimiter } = require('./middlewares/rateLimiterMiddlewar
 const gracefulShutdown = require('./middlewares/dbDisconnectMiddleware');
 const { connectDB } = require('./config/db');
 const passport = require("./config/passport");
-
+const scheduleUserDeletionJob = require('./utils/scheduleUserDeletion');
 // Routes
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require("./routes/authRoutes");
@@ -69,6 +69,9 @@ initializeSocket(server); // Initialize Socket.IO on the HTTP server
 
 // --- Database Connection ---
 connectDB(); // Connect to MongoDB
+
+// Start scheduled job
+scheduleUserDeletionJob();
 
 
 // --- HTTP Rate Limiting and Route Mounting ---

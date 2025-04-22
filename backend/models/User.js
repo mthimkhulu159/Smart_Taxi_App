@@ -37,6 +37,13 @@ const userSchema = new Schema(
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
     roleUpgradeRequested: { type: Boolean, default: false },
+    isDeletionRequested: {
+      type: Boolean,
+      default: false,
+    },
+    deletionRequestedAt: {
+      type: Date,
+    }
   },
   { timestamps: true }
 );
