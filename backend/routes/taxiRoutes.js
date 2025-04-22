@@ -37,6 +37,8 @@ router.put("/:taxiId/currentStop", taxiController.updateCurrentStop);
 // Route to update the taxi's load (current passengers)
 router.put("/:taxiId/load", taxiController.updateLoad);
 
+router.put("/:taxiId/direction", taxiController.updateDirectionManual);
+
 // Route to update the taxi's status (available, roaming, etc.)
 router.put("/:taxiId/status", taxiController.updateStatus);
 

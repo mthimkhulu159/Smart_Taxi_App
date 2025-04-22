@@ -22,6 +22,9 @@ const statusOptions = [
     'waiting', 'available', 'roaming', 'almost full', 'full', 'on trip', 'not available',
 ];
 
+
+const directionOptions: Array<'forward' | 'return'> = ['forward', 'return'];
+
 // --- Types and Interfaces ---
 type Taxi = {
     _id: string;
@@ -41,7 +44,7 @@ type Stop = {
     order: number;
 };
 
-type UpdateType = 'status' | 'stop' | 'load' | null;
+type UpdateType = 'status' | 'stop' | 'load' | 'direction' | null;
 
 type TaxiManagementNavigationProp = StackNavigationProp<RootStackParamList, 'TaxiManagement'>;
 
@@ -130,6 +133,7 @@ const TaxiManagement: React.FC = () => {
     const [newStop, setNewStop] = useState<string>('');
     const [newLoad, setNewLoad] = useState<string>('0');
     const [stopOptions, setStopOptions] = useState<string[]>([]);
+    const [newDirection, setNewDirection] = useState<'forward' | 'return'>(directionOptions[0]);
     const [isLoadingStops, setIsLoadingStops] = useState<boolean>(false);
     const [sidebarVisible, setSidebarVisible] = useState(false);
     const [customPopupVisible, setCustomPopupVisible] = useState(false); // For info popups
@@ -377,6 +381,7 @@ const TaxiManagement: React.FC = () => {
         setNewStatus(taxi.status || statusOptions[0]);
         setNewLoad(taxi.currentLoad?.toString() ?? '0');
         setNewStop(taxi.currentStop || '');
+        setNewDirection(taxi.direction === 'return' ? 'return' : 'forward');
         // Reset stop-related state
         setStopOptions([]);
         setIsLoadingStops(false);
@@ -420,7 +425,12 @@ const TaxiManagement: React.FC = () => {
                 endpoint = `api/taxis/${selectedTaxi._id}/load`;
                 body = { currentLoad: parsedLoad };
                 optimisticUpdateData = { currentLoad: parsedLoad };
-            } else {
+            } else if (updateType === 'direction') { 
+                if (!newDirection) throw new Error('Please select a direction.'); // Basic validation
+                endpoint = `api/taxis/${selectedTaxi._id}/direction`; // Use the new endpoint
+                body = { direction: newDirection };
+                optimisticUpdateData = { direction: newDirection }; }
+            else {
                 throw new Error("Invalid update type selected.");
             }
 
@@ -700,6 +710,7 @@ const TaxiManagement: React.FC = () => {
                                                 <View style={styles.optionButtons}>
                                                     <ActionButton title="Status" onPress={() => setUpdateType('status')} style={styles.modalOptionButton} iconName="flag-outline" iconFamily="Ionicons"/>
                                                     <ActionButton title="Stop" onPress={() => setUpdateType('stop')} style={styles.modalOptionButton} iconName="location-outline" iconFamily="Ionicons"/>
+                                                    <ActionButton title="direction" onPress={() => setUpdateType('direction')} style={styles.modalOptionButton} iconName="arrow-up-sharp" iconFamily="Ionicons"/>
                                                     <ActionButton title="Load" onPress={() => setUpdateType('load')} style={styles.modalOptionButton} iconName="people-outline" iconFamily="Ionicons"/>
                                                 </View>
                                             </View>
@@ -729,6 +740,22 @@ const TaxiManagement: React.FC = () => {
                                                     </View>
                                                 ) : (
                                                     <Text style={styles.noStopsText}>No stops available for this taxi's route.</Text>
+                                                )}
+                                            </View>
+                                        )}
+                                     {updateType === 'direction' && (
+                                            <View style={styles.formGroup}>
+                                                <Text style={styles.modalLabel}>New Direction:</Text>
+                                                {isLoadingStops ? (
+                                                    <View style={styles.loadingStopsContainer}><ActivityIndicator/><Text style={styles.loadingStopsText}>Loading directions...</Text></View>
+                                                ) : directionOptions.length > 0 ? (
+                                                    <View style={styles.pickerContainer}>
+                                                        <Picker selectedValue={newDirection} onValueChange={setNewDirection} style={styles.pickerStyle} itemStyle={styles.pickerItemStyle}>
+                                                            {directionOptions.map(s => <Picker.Item key={s} label={s} value={s}/>)}
+                                                        </Picker>
+                                                    </View>
+                                                ) : (
+                                                    <Text style={styles.noStopsText}>Only forward direction is available.</Text>
                                                 )}
                                             </View>
                                         )}
