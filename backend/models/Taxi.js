@@ -45,6 +45,15 @@ const taxiSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    direction: {
+      type: String,
+      enum: ['forward', 'return'],
+      default: 'forward'
+    },
+    allowReturnPickups: {
+      type: Boolean,
+      default: false
+    },    
   },
   { timestamps: true }
 );

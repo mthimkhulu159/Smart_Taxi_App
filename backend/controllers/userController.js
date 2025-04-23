@@ -1,21 +1,24 @@
 const User = require('../models/User');
 const sendEmail = require('../utils/sendEmail');
 
+
 exports.getUserDetails = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password'); // Ensure it's the right user
-    
+    const user = await User.findById(req.user.id).select('-password');
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
     res.status(200).json({
       user: {
-        id: user._id, 
-        name: user.name, // Ensure the correct fields are returned
+        id: user._id,
+        name: user.name,
         email: user.email,
         role: user.role,
         phone: user.phone,
+        isDeletionRequested: user.isDeletionRequested,
+        deletionRequestedAt: user.deletionRequestedAt,
       }
     });
   } catch (error) {
@@ -23,6 +26,7 @@ exports.getUserDetails = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // Update user details (name, phone, email)
 exports.updateUserDetails = async (req, res) => {
@@ -100,4 +104,40 @@ exports.upgradeToDriver = async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 };
+
+exports.requestAccountDeletion = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (user.isDeletionRequested) {
+      return res.status(400).json({ message: 'Deletion already requested' });
+    }
+
+    user.isDeletionRequested = true;
+    user.deletionRequestedAt = new Date();
+    await user.save();
+
+    res.status(200).json({ message: 'Account deletion initiated. Your account will be permanently deleted in 7 days.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Something went wrong', error: err.message });
+  }
+};
+
+
+exports.cancelAccountDeletion = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.isDeletionRequested = false;
+    user.deletionRequestedAt = null;
+    await user.save();
+
+    res.status(200).json({ message: 'Account deletion canceled' });
+  } catch (err) {
+    res.status(500).json({ message: 'Something went wrong', error: err.message });
+  }
+};
+
 
