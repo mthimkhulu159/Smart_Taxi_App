@@ -171,10 +171,10 @@ exports.addTaxi = async (req, res, next) => {
 // --- Search Taxis ---
 // Finds available taxis that operate on routes covering the specified start and end locations
 // and are heading in the correct direction to pick up the passenger.
-// (No socket emissions needed here)
 exports.searchTaxis = async (req, res, next) => {
     try {
         const { startLocation, endLocation } = req.query;
+        console.log(`[DEBUG] Search Request: startLocation=${startLocation}, endLocation=${endLocation}`);
 
         // Validate input
         if (!startLocation || !endLocation) {
@@ -186,22 +186,22 @@ exports.searchTaxis = async (req, res, next) => {
 
         // 1. Find routes that contain BOTH the start and end locations
         const routes = await Route.find({
-            'stops.name': { $all: [startLocation, endLocation] } // Efficiently find routes with both stops
-        }).lean(); // Use .lean() for performance if only reading data
+            'stops.name': { $all: [startLocation, endLocation] }
+        }).lean();
 
+        console.log("[DEBUG] Found Routes:", routes.length > 0 ? routes.map(r => r._id) : "None");
         if (!routes || routes.length === 0) {
             return res.status(404).json({ message: `Not Found: No routes found covering both '${startLocation}' and '${endLocation}'.` });
         }
 
         // 2. Determine the direction of travel for the passenger on each valid route
         const validRouteDetails = routes.map(route => {
-            const stops = route.stops.sort((a, b) => a.order - b.order); // Ensure stops are sorted
+            const stops = route.stops.sort((a, b) => a.order - b.order);
             const startIdx = stops.findIndex(s => s.name === startLocation);
             const endIdx = stops.findIndex(s => s.name === endLocation);
 
-            // This check should technically be redundant due to the $all query, but good for safety
             if (startIdx === -1 || endIdx === -1) {
-                return null; // Should not happen
+                return null;
             }
 
             const passengerDirection = startIdx < endIdx ? 'forward' : 'return';
@@ -210,91 +210,126 @@ exports.searchTaxis = async (req, res, next) => {
                 routeId: route._id,
                 passengerDirection: passengerDirection,
                 startIdx: startIdx,
-                stops: stops // Keep sorted stops for later comparison
+                stops: stops
             };
-        }).filter(details => details !== null); // Filter out any nulls (though unlikely)
+        }).filter(details => details !== null);
+
+        console.log("[DEBUG] Valid Route Details:", validRouteDetails.length > 0 ? validRouteDetails.map(d => ({ routeId: d.routeId.toString(), passengerDirection: d.passengerDirection })) : "None");
 
         if (validRouteDetails.length === 0) {
-            // This state implies the stops exist but maybe not in a logical order? Or an issue with findIndex.
-             console.warn("Found routes with stops, but failed to determine passenger direction.", {startLocation, endLocation, routes});
             return res.status(404).json({ message: "Not Found: Could not determine valid travel direction on found routes." });
         }
 
         const validRouteIds = validRouteDetails.map(r => r.routeId);
+        console.log("[DEBUG] Valid Route IDs for Aggregation:", validRouteIds.map(id => id.toString()));
 
-        // 3. Find taxis on these valid routes that are potentially available
-        const availableStatuses = ["waiting", "available", "almost full", "roaming"];
-        const candidateTaxis = await Taxi.find({
-            routeId: { $in: validRouteIds },
-            status: { $in: availableStatuses },
-            currentLoad: { $lt: taxi.capacity } // Taxi must have space
-        })
-        .populate("routeId", "routeName stops") // Populate necessary fields
-        .populate("driverId", "name username");
+        // 3. Find taxis on these valid routes that are potentially available using Aggregation Framework
+        const availableStatuses = ["waiting", "available", "almost full", "roaming", "on trip"];
+        console.log("[DEBUG] Available Statuses for Taxi Filter:", availableStatuses);
+
+        const candidateTaxis = await Taxi.aggregate([
+            {
+                $match: {
+                    routeId: { $in: validRouteIds },
+                    status: { $in: availableStatuses },
+                    $expr: { $lt: ["$currentLoad", "$capacity"] }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'routes',
+                    localField: 'routeId',
+                    foreignField: '_id',
+                    as: 'routeInfo' // Renamed to avoid overwriting routeId
+                }
+            },
+            {
+                $unwind: '$routeInfo'
+            },
+            {
+                $lookup: {
+                    from: 'users', // CORRECTED: Use 'users' collection for the User model
+                    localField: 'driverId',
+                    foreignField: '_id',
+                    as: 'driverInfo' // Renamed to avoid overwriting driverId
+                }
+            },
+            {
+                $unwind: '$driverInfo'
+            },
+            {
+                $project: { 
+                    _id: 1,
+                    numberPlate: 1, status: 1, currentLoad: 1, capacity: 1,
+                    direction: 1, currentStop: 1, allowReturnPickups: 1, updatedAt: 1,
+                    // Reconstruct fields clearly
+                    route: { _id: '$routeInfo._id', routeName: '$routeInfo.routeName', stops: '$routeInfo.stops' },
+                    driver: { _id: '$driverInfo._id', name: '$driverInfo.name', email: '$driverInfo.email' }, // CORRECTED: Use fields from User model
+                    // Keep original IDs for reference if needed
+                    routeId: '$routeInfo._id',
+                    driverId: '$driverInfo._id'
+                }
+            }
+        ]);
+
+        console.log("[DEBUG] Candidate Taxis after Aggregation:", candidateTaxis.length > 0 ? candidateTaxis.map(t => t._id) : "None");
 
         if (!candidateTaxis || candidateTaxis.length === 0) {
-            return res.status(404).json({ message: "Not Found: No taxis currently available on suitable routes." });
+            return res.status(404).json({ message: "Not Found: No taxis currently available on suitable routes with space." });
         }
 
         // 4. Filter candidate taxis based on direction and location
         const suitableTaxis = candidateTaxis.filter((taxi) => {
-            // Basic sanity checks
-             if (!taxi.routeId || typeof taxi.routeId !== 'object' || !Array.isArray(taxi.routeId.stops)) {
-                 console.warn(`[searchTaxis] Skipping taxi ${taxi._id} due to missing or invalid populated routeId/stops.`);
-                 return false;
-             }
-
-            // Find the route details corresponding to this taxi's route
-            const routeInfo = validRouteDetails.find(r => r.routeId.equals(taxi.routeId._id));
+            console.log(`[DEBUG FILTER] Processing taxi ID: ${taxi._id}, currentStop: ${taxi.currentStop}, direction: ${taxi.direction}`);
+            
+            if (!taxi.route || !Array.isArray(taxi.route.stops)) {
+                console.warn(`[DEBUG FILTER] Skipping taxi ${taxi._id} due to missing or invalid route/stops.`);
+                return false;
+            }
+            
+            const routeInfo = validRouteDetails.find(r => r.routeId.toString() === taxi.routeId.toString());
             if (!routeInfo) {
-                 console.warn(`[searchTaxis] Skipping taxi ${taxi._id} as its route details were not found in validRouteDetails (should not happen).`);
-                return false; // Should not happen if logic is correct
+                console.warn(`[DEBUG FILTER] Skipping taxi ${taxi._id} as its route details were not found in validRouteDetails.`);
+                return false;
             }
 
             const { passengerDirection, startIdx, stops } = routeInfo;
-            const taxiDirection = taxi.direction || 'forward'; // Default to forward if unset
-
-            // Find the taxi's current position index in the sorted stops list
+            const taxiDirection = taxi.direction || 'forward'; 
+            
             const taxiCurrentStopIndex = stops.findIndex(stop => stop.name === taxi.currentStop);
+            
             if (taxiCurrentStopIndex === -1) {
-                console.warn(`[searchTaxis] Skipping taxi ${taxi._id} because its current stop '${taxi.currentStop}' is not found in the sorted route stops.`);
-                return false; // Taxi's current stop is invalid for this route
+                console.warn(`[DEBUG FILTER] Skipping taxi ${taxi._id} because its current stop '${taxi.currentStop}' is not found in the sorted route stops.`);
+                return false;
             }
 
-            // --- Core Logic: Check if the taxi can pick up the passenger ---
-
-            // Case 1: Passenger wants to go FORWARD
+            let isSuitable = false;
             if (passengerDirection === "forward") {
-                // Taxi must also be going FORWARD and must be AT or BEFORE the passenger's start location
-                return taxiDirection === "forward" && taxiCurrentStopIndex <= startIdx;
+                isSuitable = taxiDirection === "forward" && taxiCurrentStopIndex <= startIdx;
+            } else if (passengerDirection === "return") {
+                isSuitable = taxiDirection === "return" && taxi.allowReturnPickups === true && taxiCurrentStopIndex >= startIdx;
             }
 
-            // Case 2: Passenger wants to go RETURN (backward)
-            if (passengerDirection === "return") {
-                // Taxi must also be going RETURN, must ALLOW return pickups,
-                // and must be AT or AFTER (in the original forward order) the passenger's start location
-                return taxiDirection === "return" && taxi.allowReturnPickups === true && taxiCurrentStopIndex >= startIdx;
-            }
-
-            // If passenger direction is somehow neither, don't include the taxi
-            return false;
+            return isSuitable;
         });
 
-        // Check if any suitable taxis remain after filtering
+        console.log("[DEBUG] Suitable Taxis after JavaScript Filter:", suitableTaxis.length > 0 ? suitableTaxis.map(t => t._id) : "None");
+
         if (suitableTaxis.length === 0) {
+            // This more specific message will now be hit if the JS filter is the reason for no results
             return res.status(404).json({ message: "Not Found: No taxis found heading in the right direction or allowing pickups for your trip." });
         }
 
-        // Format the final list of taxis for the response
         const responseTaxis = suitableTaxis.map(formatTaxiDataForEmit);
         res.status(200).json({ taxis: responseTaxis });
 
     } catch (error) {
         console.error("Error searching taxis:", error);
         res.status(500).json({ message: "Internal Server Error searching taxis", error: error.message });
-        // next(error); // Optional: pass to error middleware
     }
 };
+
+
 
 // --- Get Driver Taxis ---
 // Fetches all taxis associated with the currently logged-in driver.
