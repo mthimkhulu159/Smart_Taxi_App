@@ -29,39 +29,42 @@ exports.getUserDetails = async (req, res) => {
 
 
 // Update user details (name, phone, email)
+
 exports.updateUserDetails = async (req, res) => {
   try {
-    const { name, phone } = req.body; // Extract details from the request body
-    
-    // Validate input (optional but recommended)
-    if (!name || !phone ) {
-      return res.status(400).json({ message: 'All fields (name, phone, email) are required' });
+    const { name, phone } = req.body;
+
+    if (!name || !phone) {
+      return res.status(400).json({ message: 'Name and phone are required.' });
     }
 
-    // Find the user by ID
     const user = await User.findById(req.user.id);
-
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Check if phone number is taken by another user
+    const existingUserWithPhone = await User.findOne({ phone: phone.trim(), _id: { $ne: req.user.id } });
+    if (existingUserWithPhone) {
+      return res.status(409).json({ message: 'Phone number already in use by another account.' });
     }
 
     // Update user details
-    user.name = name;
-    user.phone = phone;
+    user.name = name.trim();
+    user.phone = phone.trim();
 
-    // Save updated user document to the database
     await user.save();
 
-    // Return updated user details (excluding password for security)
     res.status(200).json({
       message: 'User details updated successfully',
       user: {
         name: user.name,
-        phone: user.phone
+        phone: user.phone,
+        email: user.email,  // optionally return email if you want
       },
     });
   } catch (error) {
-    console.error("Error updating user details:", error);
+    console.error('Error updating user details:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

@@ -26,3 +26,179 @@ ReferenceError: Sources is not defined
     at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/taxiRoutes.js:3:24)
     at Module._compile (node:internal/modules/cjs/loader:1529:14)
     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-16 16:18:04] ERROR: uncaughtException: Unexpected identifier 'name'
+/workspaces/Smart_Taxi_App/backend/controllers/authController.js:47
+      token: generateToken(newUser._id, newUser.email, newUser.role, new.name), // Include the role in the token
+                                                                         ^^^^
+
+SyntaxError: Unexpected identifier 'name'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/authRoutes.js:3:24)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-16 16:26:05] ERROR: uncaughtException: Unexpected token 'else'
+/workspaces/Smart_Taxi_App/backend/controllers/taxiController.js:576
+                 else if (['full', 'almost full'].includes(taxi.status)) taxi.status = 'roaming'; // Or 'available' if preferred
+                 ^^^^
+
+SyntaxError: Unexpected token 'else'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/taxiRoutes.js:3:24)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-16 16:26:09] ERROR: uncaughtException: Unexpected token 'else'
+/workspaces/Smart_Taxi_App/backend/controllers/taxiController.js:575
+                 else if (['full', 'almost full'].includes(taxi.status)) taxi.status = 'roaming'; // Or 'available' if preferred
+                 ^^^^
+
+SyntaxError: Unexpected token 'else'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/taxiRoutes.js:3:24)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-16 16:26:44] ERROR: uncaughtException: Unexpected token 'else'
+/workspaces/Smart_Taxi_App/backend/controllers/taxiController.js:576
+                 else if (['full', 'almost full'].includes(taxi.status)) taxi.status = 'roaming'; // Or 'available' if preferred
+                 ^^^^
+
+SyntaxError: Unexpected token 'else'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/taxiRoutes.js:3:24)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-16 16:28:01] ERROR: uncaughtException: Unexpected identifier 'a'
+/workspaces/Smart_Taxi_App/backend/controllers/taxiController.js:575
+                 if (['waiting'].includes(taxi.status)) taxi.status = 'avai'a';
+                                                                            ^
+
+SyntaxError: Unexpected identifier 'a'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/taxiRoutes.js:3:24)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-16 16:28:02] ERROR: uncaughtException: Invalid or unexpected token
+/workspaces/Smart_Taxi_App/backend/controllers/taxiController.js:575
+                 if (['waiting'].includes(taxi.status)) taxi.status = 'avai'';
+                                                                            ^^
+
+SyntaxError: Invalid or unexpected token
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/taxiRoutes.js:3:24)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-16 16:28:06] ERROR: uncaughtException: Invalid or unexpected token
+/workspaces/Smart_Taxi_App/backend/controllers/taxiController.js:575
+                 if (['waiting'].includes(taxi.status)) taxi.status = 'avail'';
+                                                                             ^^
+
+SyntaxError: Invalid or unexpected token
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/taxiRoutes.js:3:24)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-20 22:39:34] ERROR: uncaughtException: Identifier 'User' has already been declared
+/workspaces/Smart_Taxi_App/backend/controllers/userController.js:32
+const User = require('../models/User'); // Adjust path as needed
+      ^
+
+SyntaxError: Identifier 'User' has already been declared
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/userRoutes.js:3:24)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-20 22:53:05] ERROR: uncaughtException: Unexpected token ')'
+/workspaces/Smart_Taxi_App/backend/controllers/rideRequestController.js:297
+    if (taxi.status !== 'roaming' &&) {
+                                    ^
+
+SyntaxError: Unexpected token ')'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/rideRequestRoutes.js:4:31)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-20 22:53:28] ERROR: uncaughtException: Unexpected identifier 'taxi'
+/workspaces/Smart_Taxi_App/backend/controllers/rideRequestController.js:297
+    if (taxi.status !== 'roaming'  taxi.status !== 'available') {
+                                   ^^^^
+
+SyntaxError: Unexpected identifier 'taxi'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/rideRequestRoutes.js:4:31)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+[2025-06-20 23:03:45] ERROR: uncaughtException: Unexpected identifier 'taxi'
+/workspaces/Smart_Taxi_App/backend/controllers/rideRequestController.js:297
+    if (taxi.status !== 'roaming'  taxi.status !== 'available') {
+                                   ^^^^
+
+SyntaxError: Unexpected identifier 'taxi'
+    at wrapSafe (node:internal/modules/cjs/loader:1472:18)
+    at Module._compile (node:internal/modules/cjs/loader:1501:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/workspaces/Smart_Taxi_App/backend/routes/rideRequestRoutes.js:4:31)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)

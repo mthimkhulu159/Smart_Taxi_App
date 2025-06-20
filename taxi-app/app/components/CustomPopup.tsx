@@ -13,7 +13,6 @@ interface CustomPopupProps {
     type: 'success' | 'error' | 'warning' | 'info';
     detailedMessage?: string; // Optional detailed message for error/debugging
     onClose: () => void;
-    onRetry?: () => void; // Optional retry handler for server errors
 }
 
 // Map the types to valid Ionicons icon names
@@ -30,7 +29,6 @@ const CustomPopup: React.FC<CustomPopupProps> = ({
     type,
     detailedMessage,
     onClose,
-    onRetry
 }) => {
     const fadeAnim = React.useRef(new Animated.Value(0)).current; // Fade-in animation
     const translateYAnim = React.useRef(new Animated.Value(200)).current; // Slide-up animation
@@ -85,8 +83,6 @@ const CustomPopup: React.FC<CustomPopupProps> = ({
             break;
         case 'error':
             backgroundColor = '#F44336'; // Red for error
-            buttonText = onRetry ? 'Retry' : 'Close'; // Button text is Retry if onRetry is provided, otherwise Close
-            buttonAction = onRetry || onClose; // Button action is onRetry if provided, otherwise onClose
             break;
         case 'warning':
             backgroundColor = '#FF9800'; // Orange for warning

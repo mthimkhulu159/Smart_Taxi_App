@@ -44,7 +44,7 @@ exports.registerUser = async (req, res) => {
         email: newUser.email,
         role: newUser.role,
       },
-      token: generateToken(newUser._id, newUser.email, newUser.role, newName.name), // Include the role in the token
+      token: generateToken(newUser._id, newUser.email, newUser.role, newUser.name), // Include the role in the token
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

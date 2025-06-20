@@ -572,16 +572,15 @@ exports.updateLoad = async (req, res, next) => {
                  if (taxi.status !== 'full') taxi.status = 'almost full';
             } else if (taxi.currentLoad > 0) {
                 // If load > 0 and status was 'available' or 'waiting', change to 'roaming'
-                 if (['available', 'waiting'].includes(taxi.status)) taxi.status = 'roaming';
+                 if (['waiting'].includes(taxi.status)) taxi.status = 'available'; // Or 'roaming' if preferred;
                  // If status was 'full' or 'almost full' but load dropped, maybe change back?
-                 else if (['full', 'almost full'].includes(taxi.status)) taxi.status = 'roaming'; // Or 'available' if preferred
+                 else if (['full', 'almost full'].includes(taxi.status)) taxi.status = 'available'; // Or 'available' if preferred
             } else { // currentLoad is 0
                 // If load is 0, change back to 'available' (unless it was explicitly set to 'waiting')
                  if (taxi.status !== 'waiting') taxi.status = 'available';
             }
             statusChanged = oldStatus !== taxi.status;
         }
-        // --- End auto-update status ---
 
         await taxi.save();
 

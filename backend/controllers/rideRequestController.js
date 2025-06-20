@@ -294,9 +294,9 @@ exports.getPickupByDriver = async (req, res) => {
       return res.status(404).json({ error: "Taxi for this driver not found." });
     }
 
-    if (taxi.status !== 'roaming') {
+    if (taxi.status !== 'roaming' && taxi.status !== 'available') {
         // Inform the driver they need to be in 'roaming' status to see pickup requests
-        return res.status(400).json({ error: "Your taxi must be in 'roaming' status to receive pickup requests." });
+        return res.status(400).json({ error: "Your taxi must be in 'roaming' or available status to receive pickup requests." });
     }
 
     // 4. Get the taxi's current stop.

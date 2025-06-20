@@ -8,100 +8,88 @@ import {
     View,
     TouchableOpacity,
     Keyboard,
-    TouchableWithoutFeedback,
     Platform,
     ViewStyle,
     TextStyle,
     Animated,
     Dimensions,
-    // StyleProp, // Not strictly needed for this version
-    // ImageStyle,
+    Pressable, // Replaced TouchableWithoutFeedback for modern interaction
 } from 'react-native';
-// Removed LinearGradient as we're using a solid background
-import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons'; // Keep icons
+// Keep icons - Ionicons for menu, Feather for general actions, MaterialCommunityIcons for specific ones
+import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Sidebar from '../components/Sidebar'; // (ADJUST PATH if needed)
-import { RootStackParamList } from '../types/navigation'; // (ADJUST PATH if needed)
+import Sidebar from '../components/Sidebar'; // Using existing Sidebar component
+import { RootStackParamList } from '../types/navigation'; // Adjust path if needed
 
 // --- Constants ---
 const COLORS = {
-    // Light Theme Palette
-    background: '#F8F9FA',    // Very light gray
-    cardBackground: '#FFFFFF',    // White
-    cardBorder: '#DEE2E6',    // Light gray border
-    shadow: 'rgba(0, 0, 0, 0.08)', // Soft shadow color
-    textPrimary: '#212529',    // Very dark gray (almost black)
-    textSecondary: '#6C757D',    // Medium gray
-    textPlaceholder: '#ADB5BD',    // Lighter gray for placeholders
-    primary: '#007BFF',    // Standard Blue
-    primaryLight: 'rgba(0, 123, 255, 0.1)', // Light blue for highlights
-    textOnPrimary: '#FFFFFF',    // White text for primary buttons
-    inputBorder: '#CED4DA',    // Gray border for inputs
-    inputFocusBorder: '#80BDFF',    // Lighter blue for focus (optional)
-    positive: '#28A745',    // Green
-    negative: '#DC3545',    // Red
-    headerBackground: '#FFFFFF',
-    headerBorder: '#E9ECEF',
+    // A more modern, clean, and slightly artistic light theme palette
+    background: '#F0F4F8',          // Very light blue-gray for main background
+    cardBackground: '#FFFFFF',      // Pure white for cards/elements that stand out
+    cardBorder: '#E0E7ED',          // Subtle light gray border for depth
+    shadow: 'rgba(50, 50, 93, 0.08)', // A slightly darker, more impactful shadow
+    textPrimary: '#2F3C4C',         // Dark blue-gray for main headings and text
+    textSecondary: '#627D98',       // Muted blue-gray for labels and secondary info
+    textPlaceholder: '#9AAAB7',     // Soft gray for input placeholders
+    primary: '#4A90E2',             // A vibrant, inviting blue for primary actions
+    primaryLight: 'rgba(74, 144, 226, 0.15)', // Lighter tint of primary for backgrounds/highlights
+    textOnPrimary: '#FFFFFF',       // White text for primary buttons
+    inputBorder: '#CBD5E0',         // Soft gray for input field borders
+    inputFocusBorder: '#4A90E2',    // Primary blue for focused input
+    positive: '#5CB85C',            // Standard green for positive indicators
+    negative: '#D9534F',            // Standard red for negative indicators
+    headerBackground: '#FFFFFF',    // White header
+    headerBorder: '#EBF1F6',        // Very light border for header
 };
 
-// --- Interfaces & Types (Keep structure, update style names) ---
+// --- Interfaces & Types ---
 interface Row { id: number; numPeople: string; amountPaid: string; }
 interface CalculatedRow extends Row { amountDueForRow: string; changeDueToRow: string; isChangePositive: boolean; }
 interface CalculationResult { rowCalculations: CalculatedRow[]; totalReceived: string; totalChangePassengers: string; }
 
-// Redefined Styles Interface for Light Theme
+// Redefined Styles Interface with new properties for modern UI
 interface ComponentStyles {
     safeArea: ViewStyle;
-    container: ViewStyle; // Replaces mainContainer for clarity
-    // Header
+    container: ViewStyle;
     header: ViewStyle;
     headerButton: ViewStyle;
     headerTitle: TextStyle;
-    // Content & Cards
     scrollContent: ViewStyle;
     card: ViewStyle;
     cardTitle: TextStyle;
-    // Input Fields
     inputGroup: ViewStyle;
     label: TextStyle;
-    input: TextStyle; // TextInput style
-    highlightText: TextStyle; // For Total Due Driver / potentially other highlights
-    // Rows (Payment Section)
-    rowItem: ViewStyle; // Replaces rowContainer/rowCard
+    input: TextStyle;
+    highlightTextContainer: ViewStyle; // Added for the total due box style
+    highlightText: TextStyle;
+    highlightAmount: TextStyle;      // Added for the highlighted amount within highlightText
+    rowItem: ViewStyle;
     rowHeader: ViewStyle;
     rowTitle: TextStyle;
     removeButton: ViewStyle;
     rowContent: ViewStyle;
-    rowInputGroup: ViewStyle; // Grouping label + input within a row
-    rowInput: TextStyle; // Style specific to inputs within rows
+    rowInputGroup: ViewStyle;
+    rowInput: TextStyle;
     rowCalculation: ViewStyle;
     calculationText: TextStyle;
-    positiveText: TextStyle; // Replaces positiveChange
-    negativeText: TextStyle; // Replaces negativeChange
+    positiveText: TextStyle;
+    negativeText: TextStyle;
     noRowsText: TextStyle;
-    // Buttons
-    addButton: ViewStyle; // Replaces actionButtonBase/addRowButton
+    addButton: ViewStyle;
     addButtonText: TextStyle;
-    // Summary Section
-    summaryCard: ViewStyle; // Specific style if needed, else use 'card'
+    summaryCard: ViewStyle;
     summaryRow: ViewStyle;
+    summaryLastRow: ViewStyle; // Explicit style for the last summary row to remove bottom border
     summaryLabel: TextStyle;
     summaryValue: TextStyle;
-    summaryIcon: TextStyle; // Still TextStyle for Icon component
-    // Sidebar (Updated for Light Theme)
-    sidebarInternal?: ViewStyle;
-    sidebarCloseButtonInternal?: ViewStyle;
-    sidebarHeaderInternal?: ViewStyle;
-    sidebarLogoIconInternal?: ViewStyle; // Placeholder style if needed
-    sidebarTitleInternal?: TextStyle;
-    sidebarButtonInternal?: ViewStyle;
-    sidebarButtonActiveInternal?: ViewStyle;
-    sidebarButtonTextInternal?: TextStyle;
-    sidebarButtonTextActiveInternal?: TextStyle;
+    summaryIcon: TextStyle;
+    // NOTE: Sidebar styles are NOT passed as props to avoid changing Sidebar.tsx
+    // The previous error indicated that Sidebar.tsx did not expect these props.
+    // Therefore, they are removed from the props list of the Sidebar component.
 }
 
-type TaxiFareCalculatorScreenNavigationProp = StackNavigationProp<RootStackParamList, 'TaxiFareCalculator'>; // *** Adjust 'TaxiFareCalculator' if needed ***
+type TaxiFareCalculatorScreenNavigationProp = StackNavigationProp<RootStackParamList, 'TaxiFareCalculator'>;
 
 // --- Main Component ---
 const TaxiFareCalculator: React.FC = () => {
@@ -114,12 +102,13 @@ const TaxiFareCalculator: React.FC = () => {
 
     // --- Animations (Keep Existing Logic) ---
     const fadeAnim = useRef(new Animated.Value(0)).current;
-    const slideAnim = useRef(new Animated.Value(30)).current;
+    const slideAnim = useRef(new Animated.Value(20)).current; // Subtle initial slide up
+
     useEffect(() => {
         const timer = setTimeout(() => {
             Animated.parallel([
-                Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }), // Slightly faster
-                Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+                Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+                Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
             ]).start();
         }, 100);
         return () => clearTimeout(timer);
@@ -156,35 +145,34 @@ const TaxiFareCalculator: React.FC = () => {
 
     // --- Render ---
     return (
-        // Use SafeAreaView as the main background container
         <SafeAreaView style={styles.safeArea}>
+            {/* Sidebar component - NO STYLE PROPS PASSED as per user request */}
             <Sidebar
                 isVisible={sidebarVisible}
                 onClose={toggleSidebar}
                 onNavigate={handleNavigate}
                 activeScreen="TaxiFareCalculator"
-                // Pass light theme styles if Sidebar accepts them via props
-                // Or rely on the internal styles defined below matching the theme
             />
 
             <Animated.View style={[styles.container, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                 {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.headerButton} onPress={toggleSidebar}>
-                        <Ionicons name="menu" size={28} color={COLORS.textPrimary} />
+                        <Ionicons name="menu-outline" size={26} color={COLORS.textPrimary} /> {/* Modern outline icon */}
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Fare Calculator</Text>
-                    <View style={styles.headerButton} />{/* Placeholder */}
+                    <View style={styles.headerButton} />{/* Placeholder for symmetry */}
                 </View>
 
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+                {/* Replaced TouchableWithoutFeedback with Pressable */}
+                <Pressable onPress={Keyboard.dismiss} accessible={false} style={{ flex: 1 }}>
                     <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-                        {/* Card 1: Setup */}
+                        {/* Card 1: Trip Details */}
                         <View style={styles.card}>
                             <Text style={styles.cardTitle}>Trip Details</Text>
 
-                            {/* Price Input */}
+                            {/* Price per Person Input */}
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Price per Person (R)</Text>
                                 <TextInput
@@ -192,13 +180,13 @@ const TaxiFareCalculator: React.FC = () => {
                                     value={taxiPrice}
                                     onChangeText={handleSetTaxiPrice}
                                     keyboardType="numeric"
-                                    placeholder="Enter amount"
+                                    placeholder="e.g., 15.50"
                                     placeholderTextColor={COLORS.textPlaceholder}
                                     selectionColor={COLORS.primary}
                                 />
                             </View>
 
-                            {/* Passengers Input */}
+                            {/* Total Passengers Input */}
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Total Passengers</Text>
                                 <TextInput
@@ -206,27 +194,29 @@ const TaxiFareCalculator: React.FC = () => {
                                     value={totalPassengers}
                                     onChangeText={handleSetTotalPassengers}
                                     keyboardType="numeric"
-                                    placeholder="Enter number"
+                                    placeholder="e.g., 4"
                                     placeholderTextColor={COLORS.textPlaceholder}
                                     selectionColor={COLORS.primary}
                                 />
                             </View>
 
-                            {/* Total Due Display */}
+                            {/* Total Due Display (styled as a prominent highlight) */}
                             {totalAmountDueDriver > 0 && (
-                                <Text style={styles.highlightText}>
-                                    Total Due to Driver: R {totalAmountDueDriver.toFixed(2)}
-                                </Text>
+                                <View style={styles.highlightTextContainer}>
+                                    <Text style={styles.highlightText}>
+                                        Total Due to Driver: <Text style={styles.highlightAmount}>R {totalAmountDueDriver.toFixed(2)}</Text>
+                                    </Text>
+                                </View>
                             )}
                         </View>
 
-                        {/* Card 2: Passenger Payments */}
+                        {/* Card 2: Payments Received */}
                         <View style={styles.card}>
                             <Text style={styles.cardTitle}>Payments Received</Text>
 
                             {calculations.rowCalculations.length === 0 && (
                                 <Text style={styles.noRowsText}>
-                                    No payments recorded yet. Add rows below.
+                                    No payments recorded yet. Tap "Add Seat Row" below.
                                 </Text>
                             )}
 
@@ -235,7 +225,7 @@ const TaxiFareCalculator: React.FC = () => {
                                     <View style={styles.rowHeader}>
                                         <Text style={styles.rowTitle}>Row {index + 1}</Text>
                                         <TouchableOpacity style={styles.removeButton} onPress={() => handleRemoveRow(row.id)}>
-                                            <Feather name="x" size={20} color={COLORS.negative} />
+                                            <Feather name="minus-circle" size={20} color={COLORS.negative} /> {/* Modern removal icon */}
                                         </TouchableOpacity>
                                     </View>
                                     <View style={styles.rowContent}>
@@ -266,49 +256,63 @@ const TaxiFareCalculator: React.FC = () => {
                                     </View>
                                     {/* Row Calculations - Conditionally Render */}
                                     {(parseInt(row.numPeople, 10) > 0 || parseFloat(row.amountPaid) > 0) && (
-                                      <View style={styles.rowCalculation}>
-                                        <Text style={styles.calculationText}>Due: R {row.amountDueForRow}</Text>
-                                        <Text style={[styles.calculationText, row.isChangePositive ? styles.positiveText : styles.negativeText]}>
-                                            Change: R {row.changeDueToRow}
-                                        </Text>
-                                      </View>
+                                        <View style={styles.rowCalculation}>
+                                            <Text style={styles.calculationText}>
+                                                Due: <Text style={{ fontWeight: '600', color: COLORS.textPrimary }}>R {row.amountDueForRow}</Text>
+                                            </Text>
+                                            <Text style={[styles.calculationText, row.isChangePositive ? styles.positiveText : styles.negativeText]}>
+                                                Change: <Text style={{ fontWeight: '600' }}>R {row.changeDueToRow}</Text>
+                                            </Text>
+                                        </View>
                                     )}
                                 </View>
                             ))}
 
-                            {/* Add Row Button */}
+                            {/* Add Passenger Button */}
                             <TouchableOpacity style={styles.addButton} onPress={handleAddRow}>
-                                <Feather name="plus" size={18} color={COLORS.textOnPrimary} style={{ marginRight: 8 }} />
-                                <Text style={styles.addButtonText}>Add New Row</Text>
+                                <Feather name="plus-circle" size={18} color={COLORS.textOnPrimary} style={{ marginRight: 8 }} />
+                                <Text style={styles.addButtonText}>Add Seat Row</Text>
                             </TouchableOpacity>
                         </View>
 
-
-                        {/* Card 3: Summary */}
+                        {/* Card 3: Trip Summary */}
                         {rows.length > 0 && (
                             <View style={[styles.card, styles.summaryCard]}>
                                 <Text style={styles.cardTitle}>Trip Summary</Text>
                                 {/* Total Received */}
                                 <View style={styles.summaryRow}>
-                                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                        <Feather name="dollar-sign" size={18} color={COLORS.textSecondary} style={styles.summaryIcon} />
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <Feather name="trending-up" size={20} color={COLORS.positive} style={styles.summaryIcon} /> {/* Changed icon */}
                                         <Text style={styles.summaryLabel}>Total Received:</Text>
                                     </View>
                                     <Text style={styles.summaryValue}>R {calculations.totalReceived}</Text>
                                 </View>
                                 {/* Total Change Due */}
                                 <View style={styles.summaryRow}>
-                                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                        <Feather name="corner-down-left" size={18} color={COLORS.positive} style={styles.summaryIcon} />
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <Feather name="repeat" size={20} color={COLORS.textSecondary} style={styles.summaryIcon} /> {/* Changed icon */}
                                         <Text style={styles.summaryLabel}>Total Change Due:</Text>
                                     </View>
-                                    <Text style={[styles.summaryValue, {color: COLORS.positive}]}>R {calculations.totalChangePassengers}</Text>
+                                    <Text style={[styles.summaryValue, styles.positiveText]}>R {calculations.totalChangePassengers}</Text>
+                                </View>
+                                {/* Net Balance */}
+                                <View style={[styles.summaryRow, styles.summaryLastRow]}> {/* Applying summaryLastRow here */}
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <MaterialCommunityIcons name="wallet-outline" size={20} color={COLORS.textPrimary} style={styles.summaryIcon} />
+                                        <Text style={styles.summaryLabel}>Net Balance:</Text>
+                                    </View>
+                                    <Text style={[styles.summaryValue,
+                                    (parseFloat(calculations.totalReceived) - totalAmountDueDriver) >= 0
+                                        ? styles.positiveText // Positive means driver received enough/more
+                                        : styles.negativeText // Negative means driver is owed
+                                    ]}>
+                                        R {(parseFloat(calculations.totalReceived) - totalAmountDueDriver).toFixed(2)}
+                                    </Text>
                                 </View>
                             </View>
                         )}
-
                     </ScrollView>
-                </TouchableWithoutFeedback>
+                </Pressable>
             </Animated.View>
         </SafeAreaView>
     );
@@ -318,215 +322,232 @@ const TaxiFareCalculator: React.FC = () => {
 const styles = StyleSheet.create<ComponentStyles>({
     safeArea: {
         flex: 1,
-        backgroundColor: COLORS.background, // Apply background color here
+        backgroundColor: COLORS.background, // Applies the new light blue-gray background
     },
     container: {
         flex: 1,
-        // Removed background color from here
     },
-    // Header
+    // Header Styles
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 15,
-        paddingTop: Platform.OS === 'android' ? 15 : 10,
-        paddingBottom: 12,
+        paddingHorizontal: 20, // Increased padding
+        paddingTop: Platform.OS === 'android' ? 20 : 15, // Adjusted for platform consistency
+        paddingBottom: 15,
         backgroundColor: COLORS.headerBackground,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.headerBorder,
+        shadowColor: COLORS.shadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
     },
-    headerButton: { padding: 5, minWidth: 40, alignItems: 'center' }, // Adjusted padding
-    headerTitle: { fontSize: 18, fontWeight: '600', color: COLORS.textPrimary }, // Slightly smaller
-    // Content & Cards
+    headerButton: {
+        padding: 8, // More generous touch area
+        minWidth: 44, // Ensures minimum touch target size
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerTitle: {
+        fontSize: 22, // Larger, more prominent title
+        fontWeight: '700', // Bolder
+        color: COLORS.textPrimary,
+    },
+    // Scroll Content & Cards
     scrollContent: {
-        padding: 15, // Consistent padding
+        padding: 20, // Consistent padding around cards
         paddingBottom: 40,
     },
     card: {
         backgroundColor: COLORS.cardBackground,
-        borderRadius: 10, // Slightly less rounded
-        padding: 18,
+        borderRadius: 16, // More rounded, modern look
+        padding: 24, // Generous internal padding
         marginBottom: 20,
         borderWidth: 1,
         borderColor: COLORS.cardBorder,
         shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.7, // Use opacity from constant
-        shadowRadius: 4,
-        elevation: 3, // For Android
+        shadowOffset: { width: 0, height: 6 }, // More noticeable shadow
+        shadowOpacity: 0.18,
+        shadowRadius: 10,
+        elevation: 6,
     },
     cardTitle: {
-        fontSize: 17, // Adjusted size
-        fontWeight: 'bold',
+        fontSize: 20, // Slightly larger card titles
+        fontWeight: '700',
         color: COLORS.textPrimary,
-        marginBottom: 18,
-        paddingBottom: 5,
-        // borderBottomWidth: 1, // Optional: Add separator back
-        // borderBottomColor: COLORS.headerBorder,
+        marginBottom: 20,
+        paddingBottom: 5, // Space between title and content/separator if active
     },
     // Input Fields
     inputGroup: {
-        marginBottom: 18,
+        marginBottom: 20, // Consistent spacing between input groups
     },
     label: {
-        fontSize: 14,
+        fontSize: 16, // Slightly larger labels
         color: COLORS.textSecondary,
         marginBottom: 8,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     input: {
-        backgroundColor: COLORS.cardBackground, // Match card background or make slightly off
-        borderBottomWidth: 1, // Underline style
+        backgroundColor: 'transparent', // Transparent background to let the card background show
+        borderBottomWidth: 2, // Thicker underline for emphasis
         borderColor: COLORS.inputBorder,
-        borderRadius: 0, // Remove radius for underline style
-        paddingHorizontal: 5, // Adjust padding for underline
-        paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-        fontSize: 16,
+        borderRadius: 0,
+        paddingHorizontal: 0,
+        paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+        fontSize: 18, // Larger input text
         color: COLORS.textPrimary,
     },
-    highlightText: { // For Total Due Driver
-        fontSize: 16,
-        fontWeight: '600',
-        marginTop: 15,
-        textAlign: 'center',
-        color: COLORS.primary,
-        paddingVertical: 10,
-        backgroundColor: COLORS.primaryLight, // Use light primary color
-        borderRadius: 6,
+    // Highlight Text for Total Due Driver
+    highlightTextContainer: {
+        backgroundColor: COLORS.primaryLight,
+        borderRadius: 10, // Rounded corners for the highlight box
+        paddingVertical: 18, // More vertical padding
+        paddingHorizontal: 20,
+        marginTop: 25, // More margin to separate from inputs
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1.5, // Slightly thicker border for emphasis
+        borderColor: COLORS.primary,
+        shadowColor: COLORS.shadow, // Subtle shadow for the highlight box
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
     },
-    // Rows (Payment Section)
+    highlightText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        textAlign: 'center',
+    },
+    highlightAmount: {
+        fontSize: 22, // Larger amount for strong emphasis
+        fontWeight: '800', // Extra bold
+        color: COLORS.primary,
+    },
+    // Row Item Styles (Payments Received Section)
     rowItem: {
-        backgroundColor: 'transparent', // Rows blend into card
+        backgroundColor: 'transparent',
         borderBottomWidth: 1,
-        borderColor: COLORS.headerBorder, // Use light border for separation
-        paddingVertical: 15,
-        marginBottom: 10, // Space below each row before button
+        borderColor: COLORS.headerBorder, // Subtle separator
+        paddingVertical: 18,
+        marginBottom: 15, // More space between rows
     },
     rowHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 15,
     },
     rowTitle: {
-        fontSize: 15,
+        fontSize: 17,
         fontWeight: '600',
-        color: COLORS.textSecondary,
+        color: COLORS.textPrimary,
     },
     removeButton: {
         padding: 5,
-        // backgroundColor: 'rgba(220, 53, 69, 0.1)', // Optional subtle background
-        borderRadius: 15,
     },
     rowContent: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        // alignItems: 'flex-end', // Align input groups at bottom if needed
+        marginBottom: 10, // Space between inputs and calculations in row
     },
     rowInputGroup: {
-        flex: 1, // Each group takes half the space
-        marginHorizontal: 8, // Space between input groups
-        // No marginBottom needed here if aligned at bottom
+        flex: 1,
+        marginHorizontal: 8,
+        alignItems: 'flex-start',
     },
-    rowInput: { // Specific style for inputs inside rows
-        // Inherits from 'input', but can override
-        fontSize: 15,
-        paddingVertical: Platform.OS === 'ios' ? 10 : 8, // Slightly smaller padding
+    rowInput: {
+        borderBottomWidth: 1.5, // Consistent underline style
+        borderColor: COLORS.inputBorder,
+        borderRadius: 0,
+        paddingHorizontal: 0,
+        paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+        fontSize: 16,
+        color: COLORS.textPrimary,
+        width: '100%',
     },
     rowCalculation: {
-        marginTop: 12,
-        paddingTop: 10,
-        // borderTopWidth: 1, // Removed top border, rely on row bottom border
-        // borderTopColor: COLORS.headerBorder,
+        marginTop: 10, // Consistent with rowContent marginBottom
         flexDirection: 'row',
         justifyContent: 'space-between',
+        paddingHorizontal: 8, // Aligns with input text
     },
     calculationText: {
-        fontSize: 14,
+        fontSize: 15,
         color: COLORS.textSecondary,
     },
     positiveText: {
         color: COLORS.positive,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     negativeText: {
         color: COLORS.negative,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     noRowsText: {
         color: COLORS.textSecondary,
         textAlign: 'center',
         fontStyle: 'italic',
-        paddingVertical: 15,
+        paddingVertical: 25, // More vertical padding
         marginBottom: 15,
+        fontSize: 16,
     },
-    // Buttons
+    // Button Styles
     addButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 12, // Slightly smaller button
-        paddingHorizontal: 20,
-        borderRadius: 8,
-        backgroundColor: COLORS.primary, // Use primary color
-        marginTop: 10, // Space above button
-        elevation: 2,
+        paddingVertical: 16, // More vertical padding for a substantial button
+        paddingHorizontal: 30,
+        borderRadius: 10,
+        backgroundColor: COLORS.primary,
+        marginTop: 25, // More margin from content above
+        elevation: 4, // Increased elevation for a lifted effect
         shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
     },
     addButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 18, // Larger text
+        fontWeight: '700',
         color: COLORS.textOnPrimary,
     },
-    // Summary Section
+    // Summary Section Styles
     summaryCard: {
-        marginTop: 10, // Add space if needed above summary
-         // Can add specific border/background if needed
+        marginTop: 20, // Consistent top margin for cards
     },
     summaryRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 12, // Consistent vertical padding
+        paddingVertical: 16, // More vertical padding for summary rows
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.headerBorder, // Use light separator
-        // Remove border for the last item if desired (using :last-child pseudo-selector isn't straightforward in RN StyleSheet)
+        borderBottomColor: COLORS.headerBorder,
+    },
+    summaryLastRow: {
+        borderBottomWidth: 0, // Ensures no border on the very last summary item
     },
     summaryLabel: {
-        fontSize: 15,
+        fontSize: 17,
         color: COLORS.textSecondary,
+        fontWeight: '500',
     },
     summaryValue: {
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 18,
+        fontWeight: '700',
         color: COLORS.textPrimary,
     },
     summaryIcon: {
-        marginRight: 10, // Space between icon and label
+        marginRight: 12, // More space for icons
     },
-    // Sidebar Styles (Light Theme)
-    sidebarInternal: {
-        position: 'absolute', top: 0, left: 0, bottom: 0, width: 300,
-        backgroundColor: COLORS.headerBackground, // White background
-        zIndex: 1000, elevation: 10, shadowColor: '#000', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.2, shadowRadius: 5,
-        paddingTop: Platform.OS === 'ios' ? 20 : 0,
-        borderRightWidth: 1, // Add border to separate from content
-        borderRightColor: COLORS.headerBorder,
-    },
-    sidebarCloseButtonInternal: { position: 'absolute', top: Platform.OS === 'android' ? 45 : 55, right: 15, zIndex: 1010, padding: 5 },
-    sidebarHeaderInternal: { alignItems: 'center', marginBottom: 30, paddingTop: 60 },
-    sidebarLogoIconInternal: { marginBottom: 10 }, // Style if you add a logo
-    sidebarTitleInternal: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary, textAlign: 'center' }, // Dark text
-    sidebarButtonInternal: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 20, borderRadius: 8, marginBottom: 8, marginHorizontal: 10 },
-    sidebarButtonActiveInternal: {
-        backgroundColor: COLORS.primaryLight, // Light blue highlight
-    },
-    sidebarButtonTextInternal: { fontSize: 16, marginLeft: 15, color: COLORS.textSecondary, fontWeight: '500' }, // Darker text
-    sidebarButtonTextActiveInternal: { color: COLORS.primary, fontWeight: 'bold' }, // Primary color for active text
+    // Removed sidebarInternal styles as per user request to not change Sidebar code
+    // If you later decide to allow passing styles to Sidebar, these styles
+    // would be defined and passed from here.
 });
 
 export default TaxiFareCalculator;
